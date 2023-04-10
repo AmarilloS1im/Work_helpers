@@ -143,11 +143,12 @@ def DataToExcel(total_list):
 
 
 def SendMesageToMail():
+    email_pass = os.getenv('email_pass')
     current_date = date.today()
     server = smtplib.SMTP('smtp.gmail.com', 587)
     sender = 'tableopposite@gmail.com'
     send_to = 'purchase2@bilight.biz'
-    password = 'rjonwqpruhzmdpte'
+    password = email_pass
     server.starttls()
     message = f'Цены БИЛОПТ на {current_date}'
     msg = MIMEMultipart()
