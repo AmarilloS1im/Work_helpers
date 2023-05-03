@@ -13,22 +13,28 @@ load_dotenv(find_dotenv())
 """
 Before start script, always remove file 'Final_stat_form Счет-фактура № xxx от xx.xx.xxxx г..xlsx' from folder!
 """
+
+
 class Country:
-    def __init__(self,short_name_rus,code,alfa_2,short_name_en):
+    def __init__(self, short_name_rus, code, alfa_2, short_name_en):
         self.short_name_rus = short_name_rus
         self.code = code
         self.alfa_2 = alfa_2
         self.short_name_en = short_name_en
+
     def __repr__(self):
         return self.short_name_rus + ' ' + self.code + ' ' + self.alfa_2 + ' ' + self.short_name_en
 
+
 class Tnvd:
-    def __init__(self,discription, tnvd_code):
+    def __init__(self, discription, tnvd_code):
         self.discription = discription
         self.tnvd_code = tnvd_code
-def main():
 
+
+def main():
     sendMesageToMail(getInfoFromSF())
+
 
 def getInfoFromSF():
     doc_currency = str(input('Валюта документа рубли? y/n or/или да/нет'))
@@ -59,12 +65,12 @@ def getInfoFromSF():
     temp_data_list = []
     sf_number = sheet[3][0].value
 
-    for x in range(16,(sheet.max_row)-9):
-        for column in range(1,18):
+    for x in range(16, (sheet.max_row) - 9):
+        for column in range(1, 18):
             temp_data_list.append(sheet[row][column].value)
         data_list.append(temp_data_list)
         temp_data_list = []
-        row +=1
+        row += 1
     data_list = data_list[3:]
     for x in range(len(data_list)):
         data_list[x][1] = str(data_list[x][1])
@@ -74,8 +80,8 @@ def getInfoFromSF():
     work_book_sheet = work_book.active
     row = 0
 
-    for x in range(19,(sheet.max_row)-9):
-        for column in range(1,23):
+    for x in range(19, (sheet.max_row) - 9):
+        for column in range(1, 23):
             work_book_sheet[row + 2][1].value = data_list[row][0] + " " + str(data_list[row][1])
             work_book_sheet[row + 2][0].value = tnvd_dict[data_list[row][1]].tnvd_code
             work_book_sheet[row + 2][10].value = data_list[row][15]
@@ -84,15 +90,15 @@ def getInfoFromSF():
             work_book_sheet[row + 2][13].value = data_list[row][3]
             work_book_sheet[row + 2][14].value = data_list[row][2]
             work_book_sheet[row + 2][15].value = '796'
-            work_book_sheet[row + 2][16].value = round(data_list[row][9],2)
+            work_book_sheet[row + 2][16].value = round(data_list[row][9], 2)
             if doc_currency == 'y' or doc_currency == 'да':
                 work_book_sheet[row + 2][17].value = round(data_list[row][9] / rub_usd, 2)
-                work_book_sheet[row + 2][18].value = round(data_list[row][9],2)
+                work_book_sheet[row + 2][18].value = round(data_list[row][9], 2)
             else:
-                work_book_sheet[row + 2][17].value = round(((data_list[row][9]) * rub_eur)/rub_usd,2)
+                work_book_sheet[row + 2][17].value = round(((data_list[row][9]) * rub_eur) / rub_usd, 2)
                 work_book_sheet[row + 2][18].value = round(data_list[row][9] * rub_eur, 2)
             work_book_sheet[row + 2][20].value = data_list[row][13]
-        row +=1
+        row += 1
     work_book.save(f'Final_stat_form_{sf_number}_.xlsx')
     work_book.close()
     return sf_number
@@ -120,11 +126,12 @@ def sendMesageToMail(sf_number):
         part.add_header('Content-Disposition', 'attachment', filename=f'Final_stat_form_{sf_number}_.xlsx')
         msg.attach(part)
         server.login(sender, password)
-        server.sendmail(sender,send_to, msg.as_string())
+        server.sendmail(sender, send_to, msg.as_string())
         return print('Письмо отправленно успешно')
     except Exception as _ex:
         return f'{_ex}\n Проверьте ваш логин или пароль!'
     server.quit()
+
 
 if __name__ == '__main__':
     main()
