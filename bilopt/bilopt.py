@@ -33,11 +33,11 @@ data = {
 
 def main():
     data_to_excel(
-        get_data(autorization(user_agent_value, headers, data), processed_string(get_task_articles()), headers))
+        get_data(autorization(headers, data), processed_string(get_task_articles()), headers))
     send_mesage_to_mail()
 
 
-def autorization(user_agent_value, headers, data):
+def autorization(headers, data):
     session = requests.Session()
     autorization = session.post(url="https://www.bilopt.ru/Account/LogOn", headers=headers, data=data)
     return session
@@ -75,7 +75,7 @@ def get_data(session, processed_list, headers):
         url = f"https://www.bilopt.ru/Search/GetFindHeaders?productId=&number={articles}"
         response = session.get(url=url, headers=headers)
         user_friendly_json = json.loads(response.text)
-        if len(user_friendly_json["ProductLists"]) == 0 or\
+        if len(user_friendly_json["ProductLists"]) == 0 or \
                 user_friendly_json["ProductLists"][0]['Groups'][0]['Manufacturers'] is None:
             info_list.append('Нет данных на сайте')
             info_list.append('Нет данных на сайте')
