@@ -33,10 +33,10 @@ class Tnvd:
 
 
 def main():
-    sendMesageToMail(getInfoFromSF())
+    send_mesage_to_mail(get_info_from_sf())
 
 
-def getInfoFromSF():
+def get_info_from_sf():
     doc_currency = str(input('Валюта документа рубли? y/n or/или да/нет'))
     rub_eur = float(input('Введите курс RUB к ЕВРО '))
     rub_usd = float(input('Введите курс RUB к USD '))
@@ -65,7 +65,7 @@ def getInfoFromSF():
     temp_data_list = []
     sf_number = sheet[3][0].value
 
-    for x in range(16, (sheet.max_row) - 9):
+    for x in range(16, sheet.max_row - 9):
         for column in range(1, 18):
             temp_data_list.append(sheet[row][column].value)
         data_list.append(temp_data_list)
@@ -80,7 +80,7 @@ def getInfoFromSF():
     work_book_sheet = work_book.active
     row = 0
 
-    for x in range(19, (sheet.max_row) - 9):
+    for x in range(19, sheet.max_row - 9):
         for column in range(1, 23):
             work_book_sheet[row + 2][1].value = data_list[row][0] + " " + str(data_list[row][1])
             work_book_sheet[row + 2][0].value = tnvd_dict[data_list[row][1]].tnvd_code
@@ -104,7 +104,7 @@ def getInfoFromSF():
     return sf_number
 
 
-def sendMesageToMail(sf_number):
+def send_mesage_to_mail(sf_number):
     email_token = os.getenv('email_token')
     server = smtplib.SMTP('smtp.gmail.com', 587)
     sender = 'tableopposite@gmail.com'
@@ -127,10 +127,11 @@ def sendMesageToMail(sf_number):
         msg.attach(part)
         server.login(sender, password)
         server.sendmail(sender, send_to, msg.as_string())
+        server.quit()
         return print('Письмо отправленно успешно')
     except Exception as _ex:
+        server.quit()
         return f'{_ex}\n Проверьте ваш логин или пароль!'
-    server.quit()
 
 
 if __name__ == '__main__':

@@ -2,35 +2,42 @@ import shutil
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from  email.mime.base import MIMEBase
+from email.mime.base import MIMEBase
 from email import encoders
 import openpyxl
-from openpyxl import load_workbook
+
+
 class Country:
     def __repr__(self):
         return self.code + ' ' + self.alfa_2 + ' ' + self.short_name
 
-    def __init__(self,code,short_name,alfa_2):
+    def __init__(self, code, short_name, alfa_2):
         self.code = code
         self.short_name = short_name
         self.alfa_2 = alfa_2
+
+
 class Row:
-    def __init__(self,row):
+    def __init__(self, row):
         self.row = row
+
+
 class Tnvd:
-    def __init__(self,discription, tnvd_code):
+    def __init__(self, discription, tnvd_code):
         self.discription = discription
         self.tnvd_code = tnvd_code
+
+
 def main():
-    getInfoFromSF()
-    sendMesageToMail()
+    get_info_from_sf()
+    send_mesage_to_mail()
 
-def getInfoFromSF():
 
+def get_info_from_sf():
     amd = float(input('Введите курс AMD '))
     usd = float(input('Введите курс USD '))
-    country_of_origin = (str(input('Введите страну происхождения товара заглавными буквами например: АРМЕНИЯ '))).upper()
-    lable = ''
+    country_of_origin = (
+        str(input('Введите страну происхождения товара заглавными буквами например: АРМЕНИЯ '))).upper()
     lable = str(input('Введите бренд/торговую марку товара, например: Denso '))
     country_dict = {}
     tnvd_dict = {}
@@ -51,17 +58,17 @@ def getInfoFromSF():
     row = Row(16)
     data_list = []
     temp_data_list = []
-    for x in range(16,(sheet.max_row)-6):
-        for column in range(1,14):
+    for x in range(16, sheet.max_row - 6):
+        for column in range(1, 14):
             temp_data_list.append(sheet[row.row][column].value)
         data_list.append(temp_data_list)
         temp_data_list = []
-        row.row +=1
+        row.row += 1
     book.close()
     weight_book = openpyxl.open('Weight.xlsx', read_only=True, data_only=True)
     sheet_weight = weight_book.active
     weight_list = []
-    for x in range(16, (sheet_weight.max_row) - 6):
+    for x in range(16, sheet_weight.max_row - 6):
         weight_list.append(sheet_weight[x][14].value)
     weight_book.close()
     shutil.copy('Stat_form.xlsx', 'Final_stat_form.xlsx')
@@ -69,8 +76,8 @@ def getInfoFromSF():
     work_book_sheet = work_book.active
     row.row = 0
     print(data_list)
-    for x in range(16,(sheet.max_row)-6):
-        for column in range(1,23):
+    for x in range(16, sheet.max_row - 6):
+        for column in range(1, 23):
             work_book_sheet[row.row + 2][1].value = data_list[row.row][1]
             work_book_sheet[row.row + 2][0].value = tnvd_dict[data_list[row.row][2]].tnvd_code
             work_book_sheet[row.row + 2][10].value = weight_list[row.row]
@@ -80,20 +87,30 @@ def getInfoFromSF():
             work_book_sheet[row.row + 2][14].value = data_list[row.row][5]
             work_book_sheet[row.row + 2][15].value = '796'
             work_book_sheet[row.row + 2][16].value = data_list[row.row][12]
-            work_book_sheet[row.row + 2][17].value = round((data_list[row.row][12]*amd)/usd,2)
+            work_book_sheet[row.row + 2][17].value = round((data_list[row.row][12] * amd) / usd, 2)
             work_book_sheet[row.row + 2][18].value = round(data_list[row.row][12] * amd, 2)
-        row.row +=1
-    for x in range(0, (sheet.max_row)-22):
+        row.row += 1
+    for x in range(0, sheet.max_row - 22):
         if lable == 'Narva':
-            work_book_sheet[x+2][1].value = work_book_sheet[x+2][1].value.replace('Lamp', 'Лампа автомобильная') + ' ' + 'арт. ' + str(data_list[x][2])
+            work_book_sheet[x + 2][1].value = work_book_sheet[x + 2][1].value.replace('Lamp',
+                                                                                      'Лампа автомобильная') + ' ' + \
+                                              'арт. ' + str(
+                data_list[x][2])
         else:
-           work_book_sheet[x + 2][1].value = work_book_sheet[x+2][1].value.replace('WIPERBLADE','Щетка стеклоочистителя') + ' ' + 'арт. ' + str(data_list[x][2])
-           work_book_sheet[x + 2][1].value = work_book_sheet[x + 2][1].value.replace('REAR Щетка', 'Задняя щетка')
-           work_book_sheet[x + 2][1].value = work_book_sheet[x + 2][1].value.replace('FLAT BLADE RETROFIT','Щетка стеклоочистителя FLAT BLADE RETROFIT')
-           work_book_sheet[x + 2][1].value = work_book_sheet[x + 2][1].value.replace('SPARK PLUG', 'Свеча зажигания')
+            work_book_sheet[x + 2][1].value = work_book_sheet[x + 2][1].value.replace('WIPERBLADE',
+                                                                                      'Щетка стеклоочистителя') + ' ' +\
+                                              'арт. ' + str(
+                data_list[x][2])
+            work_book_sheet[x + 2][1].value = work_book_sheet[x + 2][1].value.replace('REAR Щетка', 'Задняя щетка')
+            work_book_sheet[x + 2][1].value = work_book_sheet[x + 2][1].value.replace('FLAT BLADE RETROFIT',
+                                                                                      'Щетка стеклоочистителя FLAT '
+                                                                                      'BLADE RETROFIT')
+            work_book_sheet[x + 2][1].value = work_book_sheet[x + 2][1].value.replace('SPARK PLUG', 'Свеча зажигания')
     work_book.save('Final_stat_form.xlsx')
     work_book.close()
-def sendMesageToMail():
+
+
+def send_mesage_to_mail():
     server = smtplib.SMTP('smtp.gmail.com', 587)
     sender = 'tableopposite@gmail.com'
     send_to = 'purchase2@bilight.biz, purchase@bilight.biz'
@@ -114,11 +131,13 @@ def sendMesageToMail():
         part.add_header('Content-Disposition', 'attachment', filename='Final_stat_form.xlsx')
         msg.attach(part)
         server.login(sender, password)
-        server.sendmail(sender,send_to, msg.as_string())
+        server.sendmail(sender, send_to, msg.as_string())
+        server.quit()
         return print('Письмо отправленно успешно')
     except Exception as _ex:
+        server.quit()
         return f'{_ex}\n Проверьте ваш логин или пароль!'
-    server.quit()
+
 
 if __name__ == '__main__':
     main()
