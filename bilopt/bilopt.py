@@ -32,8 +32,9 @@ data = {
 
 
 def main():
-    DataToExcel(GetData(autorization(user_agent_value, headers, data), ProcessedString(GetTaskArticles()), headers))
-    SendMesageToMail()
+    data_to_excel(
+        get_data(autorization(user_agent_value, headers, data), processed_string(get_task_articles()), headers))
+    send_mesage_to_mail()
 
 
 def autorization(user_agent_value, headers, data):
@@ -42,7 +43,7 @@ def autorization(user_agent_value, headers, data):
     return session
 
 
-def GetTaskArticles():
+def get_task_articles():
     list_of_task_articles = []
     book = openpyxl.open("Task_from_PVB.xlsx", read_only=False, data_only=True)
     sheet = book.active
@@ -52,8 +53,7 @@ def GetTaskArticles():
     return list_of_task_articles
 
 
-def ProcessedString(non_processed_list):
-    new_string = ''
+def processed_string(non_processed_list):
     processed_list = []
     for article in non_processed_list:
         new_string = ''
@@ -66,7 +66,7 @@ def ProcessedString(non_processed_list):
     return processed_list
 
 
-def GetData(session, processed_list, headers):
+def get_data(session, processed_list, headers):
     brand = str(input('Введите название бренда,например Denso (Регистр имеет значение, вводить как на сайте BilOpt): '))
     total_list = []
     qty_list_total = []
@@ -75,8 +75,8 @@ def GetData(session, processed_list, headers):
         url = f"https://www.bilopt.ru/Search/GetFindHeaders?productId=&number={articles}"
         response = session.get(url=url, headers=headers)
         user_friendly_json = json.loads(response.text)
-        if len(user_friendly_json["ProductLists"]) == 0 or user_friendly_json["ProductLists"][0]['Groups'][0][
-            'Manufacturers'] == None:
+        if len(user_friendly_json["ProductLists"]) == 0 or\
+                user_friendly_json["ProductLists"][0]['Groups'][0]['Manufacturers'] is None:
             info_list.append('Нет данных на сайте')
             info_list.append('Нет данных на сайте')
             info_list.append(0)
@@ -87,9 +87,9 @@ def GetData(session, processed_list, headers):
             info_list.append(0)
             total_list.append(info_list)
         for x in range(len(user_friendly_json['ProductLists'])):
-            if user_friendly_json["ProductLists"][x]['Groups'][0]['Manufacturers'] != None:
+            if user_friendly_json["ProductLists"][x]['Groups'][0]['Manufacturers'] is not None:
                 for j in range(len(user_friendly_json["ProductLists"][x]['Groups'][0]['Manufacturers'])):
-                    if user_friendly_json["ProductLists"][x]['Groups'][0]['Manufacturers'] == None:
+                    if user_friendly_json["ProductLists"][x]['Groups'][0]['Manufacturers'] is None:
                         continue
                     current_brand = user_friendly_json["ProductLists"][x]['Groups'][0]['Manufacturers'][j]
                     if current_brand != brand:
@@ -103,15 +103,16 @@ def GetData(session, processed_list, headers):
                             user_friendly_json["ProductLists"][x]['Groups'][0]['Products'][0]["MinimalPrice"]))
                         info_list.append(
                             user_friendly_json["ProductLists"][x]['Groups'][0]['Products'][0]["MaximumPrice"])
-                        url_qty_inf = f'https://www.bilopt.ru/Search/GetFindOffers?productId=&number={articles}&city=&selectedProductId={product_id}'
+                        url_qty_inf = f'https://www.bilopt.ru/Search/GetFindOffers?productId=&number={articles}' \
+                                      f'&city=&selectedProductId={product_id}'
                         response_qty = session.get(url=url_qty_inf, headers=headers)
                         user_friendly_json_qty = json.loads(response_qty.text)
-                        for x in range(len(user_friendly_json_qty['Items'])):
-                            if user_friendly_json_qty['Items'][x]['Quantity'] == '' or \
-                                    user_friendly_json_qty['Items'][x]['Quantity'] == None:
+                        for item in range(len(user_friendly_json_qty['Items'])):
+                            if user_friendly_json_qty['Items'][item]['Quantity'] == '' or \
+                                    user_friendly_json_qty['Items'][item]['Quantity'] is None:
                                 pass
                             else:
-                                qty_list_total.append(int(user_friendly_json_qty['Items'][x]['Quantity']))
+                                qty_list_total.append(int(user_friendly_json_qty['Items'][item]['Quantity']))
                         if len(qty_list_total) == 0:
                             max_qty = 0
                             min_qty = 0
@@ -131,7 +132,7 @@ def GetData(session, processed_list, headers):
     return total_list
 
 
-def DataToExcel(total_list):
+def data_to_excel(total_list):
     book = openpyxl.open("Task_from_PVB.xlsx", read_only=False, data_only=True)
     sheet = book.active
     for i in range(len(total_list)):
@@ -142,7 +143,7 @@ def DataToExcel(total_list):
     book.close()
 
 
-def SendMesageToMail():
+def send_mesage_to_mail():
     email_pass = os.getenv('email_pass')
     current_date = date.today()
     server = smtplib.SMTP('smtp.gmail.com', 587)
@@ -166,10 +167,11 @@ def SendMesageToMail():
         msg.attach(part)
         server.login(sender, password)
         server.sendmail(sender, send_to, msg.as_string())
+        server.quit()
         return print('Письмо отправленно успешно')
     except Exception as _ex:
+        server.quit()
         return f'{_ex}\n Проверьте ваш логин или пароль!'
-    server.quit()
 
 
 if __name__ == "__main__":
