@@ -85,6 +85,17 @@ def calculate_levinstain_distance(s1, s2):
     return matrix[str_1][str_2]
 # endregion
 
+# region Get Editorial number
+def get_editorial_num(input_string):
+    if 2 <= len(input_string) <= 3:
+        editorial_number = 1
+    elif 3 < len(input_string) <= 6:
+        editorial_number = 2
+    else:
+        editorial_number = 3
+    return editorial_number
+# endregion
+
 
 # region Make replacment
 def make_replacement(existing_pkey, user_data,table_name,where_filter):
@@ -137,7 +148,6 @@ def get_product_info_from_user(file_path):
                 pass
         return manufacturer_dict
     if os.path.isfile(file_path):
-        manufacturer_dict = make_manufacrurer_dict(universal_query('manufacturers', '*'))
         products_data_list = []
         book = openpyxl.open(file_path, read_only=True, data_only=True)
         sheet = book.active
@@ -146,26 +156,54 @@ def get_product_info_from_user(file_path):
             for column in range(0, 7):
                 tmp_list.append(sheet[row][column].value)
             products_data_list.append(tmp_list)
+        manufacturer_dict = make_manufacrurer_dict(universal_query('manufacturers', '*'))
+        print(manufacturer_dict)
         for i in range(len(products_data_list)):
-            if products_data_list[i][3] in manufacturer_dict:
-                products_data_list[i][3] = manufacturer_dict[products_data_list[i][3]]
+            possible_change_list = []
+            if products_data_list[i][3].upper() in manufacturer_dict:
+                products_data_list[i][3] = manufacturer_dict[products_data_list[i][3].upper()]
             else:
-                try:
-                    connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
-                                               password=os.getenv('password'), host=os.getenv('host'))
-                    connect.autocommit = True
-                    cursor = connect.cursor()
-                    print("Postgre SQL successfully conected")
-                    cursor.execute(f"INSERT INTO manufacturers (manufacturer_name) "
-                                   f"VALUES ('{products_data_list[i][3]}')")
-                    manufacturer_dict = make_manufacrurer_dict(universal_query('manufacturers', '*'))
-                    products_data_list[i][3] = manufacturer_dict[products_data_list[i][3]]
-                except Exception as _ex:
-                    print(f"[INFO] ERROR while working with data base {_ex}")
-                finally:
-                    cursor.close()
-                    connect.close()
-                    print("Postgre SQL Connection closed")
+                editorial_number = get_editorial_num(products_data_list[i][3])
+                print(editorial_number)
+                tmp_list = []
+                for key in manufacturer_dict.keys():
+                    if editorial_number >= calculate_levinstain_distance(key,products_data_list[i][3].upper()):
+                        tmp_list.append(key.upper())
+                    else:
+                        continue
+                tmp_list.append((products_data_list[i][3]))
+                possible_change_list.append(tmp_list)
+                print(possible_change_list)
+                offer_replace_to_user = ''
+                offer_replace_to_user = offer_replace_to_user + f"Вы указали в качестве поставщика {possible_change_list[0][-1]}, " \
+                                                                f"данного поставщика нет в списке поставщиков, возможно вы имели ввиду" \
+                                                                f" следующие варианты:{possible_change_list[0][:-1]}"
+
+                replace_offer = input(str(f"{offer_replace_to_user}\n"
+                                          f"Желаете заменить поставщика на один из предложенных вариантов?\n"
+                                          f"Если да, введите наименование поставщика как в предложенных вариантах,"
+                                          f"если нет, нажмите 'n' и новый поставщик будет добавлен в список поставщиков"))
+                if replace_offer in possible_change_list[0][:-1]:
+                    products_data_list[i][3] = manufacturer_dict[replace_offer.upper()]
+                    print(replace_offer)
+                    print(products_data_list[i][3])
+                else:
+                    try:
+                        connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
+                                                   password=os.getenv('password'), host=os.getenv('host'))
+                        connect.autocommit = True
+                        cursor = connect.cursor()
+                        print("Postgre SQL successfully conected")
+                        cursor.execute(f"INSERT INTO manufacturers (manufacturer_name) "
+                                       f"VALUES ('{products_data_list[i][3]}')")
+                        manufacturer_dict = make_manufacrurer_dict(universal_query('manufacturers', '*'))
+                        products_data_list[i][3] = manufacturer_dict[products_data_list[i][3]]
+                    except Exception as _ex:
+                        print(f"[INFO] ERROR while working with data base {_ex}")
+                    finally:
+                        cursor.close()
+                        connect.close()
+                        print("Postgre SQL Connection closed")
         return products_data_list
     else:
         raise ValueError("The function argument must be a file")
