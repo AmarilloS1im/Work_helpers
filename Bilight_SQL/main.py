@@ -2,7 +2,9 @@
 import os
 import psycopg2
 import openpyxl
+import shutil
 from dotenv import find_dotenv, load_dotenv
+
 # endregion
 
 load_dotenv(find_dotenv())
@@ -57,6 +59,8 @@ def table_data_query(table_name, where_filter, *args):
     finally:
         cursor.close()
         connect.close()
+
+
 # endregion
 
 # region Levinstain algo
@@ -83,6 +87,8 @@ def calculate_levinstain_distance(s1, s2):
         for j in range(str_2 + 1):
             matrix[i][j] = levinstain_algo(i, j, s1, s2, matrix)
     return matrix[str_1][str_2]
+
+
 # endregion
 
 # region Get Editorial number
@@ -94,11 +100,13 @@ def get_editorial_num(input_string):
     else:
         editorial_number = 3
     return editorial_number
+
+
 # endregion
 
 
 # region Make replacment
-def make_replacement(existing_pkey, user_data,table_name,where_filter):
+def make_replacement(existing_pkey, user_data, table_name, where_filter):
     columns_name_list = table_data_query('information_schema.columns', table_name, 'column_name')
     try:
         connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
@@ -115,8 +123,9 @@ def make_replacement(existing_pkey, user_data,table_name,where_filter):
     finally:
         cursor.close()
         connect.close()
-# endregion
 
+
+# endregion
 
 
 # region Get_info_from_user
@@ -138,6 +147,7 @@ def get_cert_info_from_user(file_path):
     else:
         raise ValueError("The function argument must be a file")
 
+
 def get_product_info_from_user(file_path):
     def make_manufacrurer_dict(query):
         manufacturer_dict = {}
@@ -147,6 +157,13 @@ def get_product_info_from_user(file_path):
             else:
                 pass
         return manufacturer_dict
+
+    def make_possible_chage_dict(possible_change_list):
+        possible_change_dict = {}
+        for i in range(len(possible_change_list)):
+            possible_change_dict[possible_change_list[i][-1]] = possible_change_list[i][:-1]
+        return possible_change_dict
+
     if os.path.isfile(file_path):
         products_data_list = []
         book = openpyxl.open(file_path, read_only=True, data_only=True)
@@ -158,55 +175,83 @@ def get_product_info_from_user(file_path):
             products_data_list.append(tmp_list)
         manufacturer_dict = make_manufacrurer_dict(universal_query('manufacturers', '*'))
         print(manufacturer_dict)
+        print(products_data_list)
+        possible_change_list = []
+        approved_data_list = []
+        data_list_to_check = []
         for i in range(len(products_data_list)):
-            possible_change_list = []
             if products_data_list[i][3].upper() in manufacturer_dict:
                 products_data_list[i][3] = manufacturer_dict[products_data_list[i][3].upper()]
+                approved_data_list.append(products_data_list[i])
             else:
+                data_list_to_check.append(products_data_list[i])
                 editorial_number = get_editorial_num(products_data_list[i][3])
-                print(editorial_number)
                 tmp_list = []
                 for key in manufacturer_dict.keys():
-                    if editorial_number >= calculate_levinstain_distance(key,products_data_list[i][3].upper()):
+                    if editorial_number >= calculate_levinstain_distance(key, products_data_list[i][3].upper()):
                         tmp_list.append(key.upper())
                     else:
                         continue
                 tmp_list.append((products_data_list[i][3]))
                 possible_change_list.append(tmp_list)
-                print(possible_change_list)
-                offer_replace_to_user = ''
-                offer_replace_to_user = offer_replace_to_user + f"Вы указали в качестве поставщика {possible_change_list[0][-1]}, " \
-                                                                f"данного поставщика нет в списке поставщиков, возможно вы имели ввиду" \
-                                                                f" следующие варианты:{possible_change_list[0][:-1]}"
-
-                replace_offer = input(str(f"{offer_replace_to_user}\n"
-                                          f"Желаете заменить поставщика на один из предложенных вариантов?\n"
-                                          f"Если да, введите наименование поставщика как в предложенных вариантах,"
-                                          f"если нет, нажмите 'n' и новый поставщик будет добавлен в список поставщиков"))
-                if replace_offer in possible_change_list[0][:-1]:
-                    products_data_list[i][3] = manufacturer_dict[replace_offer.upper()]
-                    print(replace_offer)
-                    print(products_data_list[i][3])
-                else:
-                    try:
-                        connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
-                                                   password=os.getenv('password'), host=os.getenv('host'))
-                        connect.autocommit = True
-                        cursor = connect.cursor()
-                        print("Postgre SQL successfully conected")
+        possible_change_dict = make_possible_chage_dict(possible_change_list)
+        print(possible_change_dict)
+        if possible_change_dict:
+            offer_to_user_to_check_manufacturers = input(str(f"В вашем файле присуствуют поставщики которых"
+                                                             f" нет в списке поставщиков в базеданых\n"
+                                                             f"Если хотите проверить данные, нажмите 'y' и программа"
+                                                             f" отправит вам файл с возможными заменами\n"
+                                                             f"если вы уверены в своем выборе нажмите любую"
+                                                             f" другую кнопку и программа добавит в"
+                                                             f" таблицу новых поставщиков"))
+            if offer_to_user_to_check_manufacturers != 'y':
+                try:
+                    connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
+                                               password=os.getenv('password'), host=os.getenv('host'))
+                    connect.autocommit = True
+                    cursor = connect.cursor()
+                    print("Postgre SQL successfully conected")
+                    for j in range(len(data_list_to_check)):
                         cursor.execute(f"INSERT INTO manufacturers (manufacturer_name) "
-                                       f"VALUES ('{products_data_list[i][3]}')")
-                        manufacturer_dict = make_manufacrurer_dict(universal_query('manufacturers', '*'))
-                        products_data_list[i][3] = manufacturer_dict[products_data_list[i][3]]
-                    except Exception as _ex:
-                        print(f"[INFO] ERROR while working with data base {_ex}")
-                    finally:
-                        cursor.close()
-                        connect.close()
-                        print("Postgre SQL Connection closed")
-        return products_data_list
+                                       f"VALUES ('{data_list_to_check[j][3].upper()}')")
+                    manufacturer_dict = make_manufacrurer_dict(universal_query('manufacturers', '*'))
+                    print(manufacturer_dict)
+                    for i in range(len(products_data_list)):
+                        if str(products_data_list[i][3]).upper() in manufacturer_dict.keys():
+                            products_data_list[i][3] = manufacturer_dict[products_data_list[i][3].upper()]
+                        else:
+                            pass
+                except Exception as _ex:
+                    print(f"[INFO] ERROR while working with data base {_ex}")
+                finally:
+                    cursor.close()
+                    connect.close()
+                    print("Postgre SQL Connection closed")
+                    print(products_data_list)
+                    return products_data_list
+            else:
+                shutil.copy(rf"{file_path}", rf"possible_changes.xlsx")
+                book = openpyxl.open(rf"possible_changes.xlsx", read_only=False, data_only=True)
+                sheet = book.active
+                for row in range(2, sheet.max_row + 1):
+                    for column in range(0, 7):
+                        if sheet[row][3].value in possible_change_dict.keys():
+                            sheet[row][3].value = f" Список замен для производителя {sheet[row][3].value}" \
+                                                  f" следующий:\n" \
+                                                  f"{possible_change_dict[sheet[row][3].value]}"
+                        else:
+                            pass
+                book.save(rf"possible_changes.xlsx")
+                book.close()
+                print(approved_data_list)
+                return approved_data_list
+        else:
+            return products_data_list
+
     else:
         raise ValueError("The function argument must be a file")
+
+
 # endregion
 
 
@@ -242,7 +287,7 @@ def add_certificates(cert_data_from_user):
                                                 f' по следующим ID {duplicate_user_data}. Заменить данные? y/n?'))
             if add_duplicates_question == 'y':
                 existing_pkey = duplicate_user_data
-                make_replacement(existing_pkey,duplicate_user_data,'certificates','certificate_id')
+                make_replacement(existing_pkey, duplicate_user_data, 'certificates', 'certificate_id')
             else:
                 pass
         else:
@@ -276,7 +321,7 @@ def add_products(products_data_from_user):
                                    password=os.getenv('password'), host=os.getenv('host'))
         connect.autocommit = True
         cursor = connect.cursor()
-        if len(duplicate_user_data) > 0:
+        if duplicate_user_data :
             if unique_user_data != '':
                 cursor.executemany(f""" INSERT INTO bilight_products (product_id,order_code,article,
                                                                 manufacturer_id,product_name,tnved_id,certificate_id)
@@ -288,7 +333,7 @@ def add_products(products_data_from_user):
                                                 f' по следующим ID {duplicate_user_data}. Заменить данные? y/n?'))
             if add_duplicates_question == 'y':
                 existing_pkey = duplicate_user_data
-                make_replacement(existing_pkey, duplicate_user_data,'bilight_products','product_id')
+                make_replacement(existing_pkey, duplicate_user_data, 'bilight_products', 'product_id')
             else:
                 pass
         else:
