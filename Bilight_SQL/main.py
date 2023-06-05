@@ -93,9 +93,7 @@ def calculate_levinstain_distance(s1, s2):
 
 # region Get Editorial number
 def get_editorial_num(input_string):
-    if 2 <= len(input_string) <= 3:
-        editorial_number = 1
-    elif 3 < len(input_string) <= 6:
+    if 2 <= len(input_string) <= 6:
         editorial_number = 2
     else:
         editorial_number = 3
@@ -158,10 +156,21 @@ def get_product_info_from_user(file_path):
                 pass
         return manufacturer_dict
 
-    def make_possible_chage_dict(possible_change_list):
+    def make_possible_change_dict(dict_to_compression, user_data_list):
+        possible_change_list = []
+        for i in range(len(user_data_list)):
+            tmp_list = []
+            editorial_number = get_editorial_num(user_data_list[i][3])
+            for key in dict_to_compression.keys():
+                if editorial_number >= calculate_levinstain_distance(key, user_data_list[i][3].upper()):
+                    tmp_list.append(key.upper())
+                else:
+                    continue
+            tmp_list.append((user_data_list[i][3]))
+            possible_change_list.append(tmp_list)
         possible_change_dict = {}
-        for i in range(len(possible_change_list)):
-            possible_change_dict[possible_change_list[i][-1]] = possible_change_list[i][:-1]
+        for j in range(len(possible_change_list)):
+            possible_change_dict[possible_change_list[j][-1]] = possible_change_list[j][:-1]
         return possible_change_dict
 
     if os.path.isfile(file_path):
@@ -176,7 +185,6 @@ def get_product_info_from_user(file_path):
         manufacturer_dict = make_manufacrurer_dict(universal_query('manufacturers', '*'))
         print(manufacturer_dict)
         print(products_data_list)
-        possible_change_list = []
         approved_data_list = []
         data_list_to_check = []
         for i in range(len(products_data_list)):
@@ -185,18 +193,8 @@ def get_product_info_from_user(file_path):
                 approved_data_list.append(products_data_list[i])
             else:
                 data_list_to_check.append(products_data_list[i])
-                editorial_number = get_editorial_num(products_data_list[i][3])
-                tmp_list = []
-                for key in manufacturer_dict.keys():
-                    if editorial_number >= calculate_levinstain_distance(key, products_data_list[i][3].upper()):
-                        tmp_list.append(key.upper())
-                    else:
-                        continue
-                tmp_list.append((products_data_list[i][3]))
-                possible_change_list.append(tmp_list)
-        possible_change_dict = make_possible_chage_dict(possible_change_list)
-        print(possible_change_dict)
-        if possible_change_dict:
+        possible_change = make_possible_change_dict(manufacturer_dict, data_list_to_check)
+        if possible_change:
             offer_to_user_to_check_manufacturers = input(str(f"В вашем файле присуствуют поставщики которых"
                                                              f" нет в списке поставщиков в базеданых\n"
                                                              f"Если хотите проверить данные, нажмите 'y' и программа"
@@ -215,7 +213,6 @@ def get_product_info_from_user(file_path):
                         cursor.execute(f"INSERT INTO manufacturers (manufacturer_name) "
                                        f"VALUES ('{data_list_to_check[j][3].upper()}')")
                     manufacturer_dict = make_manufacrurer_dict(universal_query('manufacturers', '*'))
-                    print(manufacturer_dict)
                     for i in range(len(products_data_list)):
                         if str(products_data_list[i][3]).upper() in manufacturer_dict.keys():
                             products_data_list[i][3] = manufacturer_dict[products_data_list[i][3].upper()]
@@ -227,7 +224,6 @@ def get_product_info_from_user(file_path):
                     cursor.close()
                     connect.close()
                     print("Postgre SQL Connection closed")
-                    print(products_data_list)
                     return products_data_list
             else:
                 shutil.copy(rf"{file_path}", rf"possible_changes.xlsx")
@@ -235,15 +231,15 @@ def get_product_info_from_user(file_path):
                 sheet = book.active
                 for row in range(2, sheet.max_row + 1):
                     for column in range(0, 7):
-                        if sheet[row][3].value in possible_change_dict.keys():
+                        if sheet[row][3].value in possible_change.keys():
                             sheet[row][3].value = f" Список замен для производителя {sheet[row][3].value}" \
                                                   f" следующий:\n" \
-                                                  f"{possible_change_dict[sheet[row][3].value]}"
+                                                  f"{possible_change[sheet[row][3].value]}"
                         else:
-                            pass
+                            index = sheet[row]
+                            print(index)
                 book.save(rf"possible_changes.xlsx")
                 book.close()
-                print(approved_data_list)
                 return approved_data_list
         else:
             return products_data_list
@@ -267,15 +263,12 @@ def add_certificates(cert_data_from_user):
             duplicate_user_data.append(cert_data_from_user[i])
         else:
             unique_user_data.append(cert_data_from_user[i])
-    print(duplicate_user_data)
-    print(unique_user_data)
-
     try:
         connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
                                    password=os.getenv('password'), host=os.getenv('host'))
         connect.autocommit = True
         cursor = connect.cursor()
-        if len(duplicate_user_data) > 0:
+        if duplicate_user_data:
             if unique_user_data != '':
                 cursor.executemany(f""" INSERT INTO certificates (certificate_id,certificate_number,certificate_type_id,
                                                         start_date,end_date)
@@ -314,14 +307,12 @@ def add_products(products_data_from_user):
             duplicate_user_data.append(products_data_from_user[i])
         else:
             unique_user_data.append(products_data_from_user[i])
-    print(duplicate_user_data)
-    print(unique_user_data)
     try:
         connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
                                    password=os.getenv('password'), host=os.getenv('host'))
         connect.autocommit = True
         cursor = connect.cursor()
-        if duplicate_user_data :
+        if duplicate_user_data:
             if unique_user_data != '':
                 cursor.executemany(f""" INSERT INTO bilight_products (product_id,order_code,article,
                                                                 manufacturer_id,product_name,tnved_id,certificate_id)
