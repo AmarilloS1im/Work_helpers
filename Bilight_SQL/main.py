@@ -230,14 +230,17 @@ def get_product_info_from_user(file_path):
                 book = openpyxl.open(rf"possible_changes.xlsx", read_only=False, data_only=True)
                 sheet = book.active
                 for row in range(2, sheet.max_row + 1):
-                    for column in range(0, 7):
-                        if sheet[row][3].value in possible_change.keys():
-                            sheet[row][3].value = f" Список замен для производителя {sheet[row][3].value}" \
-                                                  f" следующий:\n" \
-                                                  f"{possible_change[sheet[row][3].value]}"
-                        else:
-                            index = sheet[row]
-                            print(index)
+                    if sheet[row][3].value not in possible_change.keys():
+                        sheet.delete_rows(idx=row)
+                    else:
+                        pass
+                for row in range(2, sheet.max_row + 1):
+                    if sheet[row][3].value in possible_change.keys():
+                        sheet[row][3].value = f" Список замен для производителя {sheet[row][3].value}" \
+                                              f" следующий:\n" \
+                                              f"{possible_change[sheet[row][3].value]}"
+
+
                 book.save(rf"possible_changes.xlsx")
                 book.close()
                 return approved_data_list
