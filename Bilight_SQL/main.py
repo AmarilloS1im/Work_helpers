@@ -5,6 +5,11 @@ import openpyxl
 import shutil
 from dotenv import find_dotenv, load_dotenv
 
+
+
+
+
+
 # endregion
 
 load_dotenv(find_dotenv())
@@ -255,17 +260,22 @@ def get_product_info_from_user(file_path):
 
 
 # region add_info_to_table
-def add_certificates(cert_data_from_user):
-    existing_pkey = universal_query('certificates', 'certificate_id')
+def find_unique_and_duplicate_data(universal_query,data_from_user):
+    existing_pkey = universal_query
     existing_pkey = [x[0] for x in existing_pkey]
     unique_user_data = []
     duplicate_user_data = []
 
-    for i in range(len(cert_data_from_user)):
-        if cert_data_from_user[i][0] in existing_pkey:
-            duplicate_user_data.append(cert_data_from_user[i])
+    for i in range(len(data_from_user)):
+        if data_from_user[i][0] in existing_pkey:
+            duplicate_user_data.append(data_from_user[i])
         else:
-            unique_user_data.append(cert_data_from_user[i])
+            unique_user_data.append(data_from_user[i])
+    output_list = [unique_user_data,duplicate_user_data]
+    return output_list
+def add_certificates(cert_data_from_user):
+    duplicate_user_data = find_unique_and_duplicate_data(universal_query('certificates', 'certificate_id'),cert_data_from_user)[-1]
+    unique_user_data = find_unique_and_duplicate_data(universal_query('certificates', 'certificate_id'),cert_data_from_user)[0]
     try:
         connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
                                    password=os.getenv('password'), host=os.getenv('host'))
@@ -348,3 +358,37 @@ def add_products(products_data_from_user):
 
 if __name__ == '__main__':
     main()
+
+def add_duplictes(duplicate_user_data,unique_user_data,data_from_user,question):
+    try:
+        connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
+                                   password=os.getenv('password'), host=os.getenv('host'))
+        connect.autocommit = True
+        cursor = connect.cursor()
+        if duplicate_user_data:
+            if unique_user_data != '':
+                cursor.executemany(f""" INSERT INTO certificates (certificate_id,certificate_number,certificate_type_id,
+                                                        start_date,end_date)
+                                                        VALUES
+                                                        (%s,%s,%s,%s,%s) """, unique_user_data)
+            else:
+                pass
+            question = str(input(f'В базе данные обнаружены дубликаты данных'
+                                                f' по следующим ID {duplicate_user_data}. Заменить данные? y/n?'))
+            if question == 'y':
+                existing_pkey = duplicate_user_data
+                make_replacement(existing_pkey, duplicate_user_data, 'certificates', 'certificate_id')
+            else:
+                pass
+        else:
+            cursor.executemany(f""" INSERT INTO certificates (certificate_id,certificate_number,certificate_type_id,
+                                        start_date,end_date)
+                                        VALUES
+                                        (%s,%s,%s,%s,%s) """, data_from_user)
+    except Exception as _ex:
+        print(f"[INFO] ERROR while working with data base {_ex}")
+    finally:
+        cursor.close()
+        connect.close()
+        print("Postgre SQL Connection closed")
+
