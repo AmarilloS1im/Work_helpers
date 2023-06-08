@@ -1,10 +1,8 @@
-import os
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
-from aiogram.types import ContentType
-from dotenv import find_dotenv, load_dotenv
+
 import emoji
 from main import *
 
@@ -97,16 +95,85 @@ async def load_certificates_to_postgresql(message: types.Message, state: FSMCont
                     0]
             if duplicate_user_data:
                 await message.reply(f"В базе данные обнаружены дубликаты данных по следующим ID"
-                                     f" {duplicate_user_data}. Заменить данные? y/n?", reply_markup=markup_question)
-
-                @dp.callback_query_handler(text='yes', state=[FSMAdmin.upload_certificates])
-                async def callback_yes(callback: types.CallbackQuery):
-                    await state.finish()
-                    await add_duplictes(duplicate_user_data, unique_user_data, cert_data_from_user, 'y')
+                                    f" {duplicate_user_data}. Заменить данные? y/n?", reply_markup=markup_question)
 
             else:
                 add_duplictes(duplicate_user_data, unique_user_data, cert_data_from_user, 'no')
-            await state.finish()
+                await message.reply(f"Cертификаты закгружены",
+                                    reply_markup=markup_back)
+                await state.finish()
+
+            @dp.callback_query_handler(text='yes', state=[FSMAdmin.upload_certificates])
+            async def callback_yes_cert(callback: types.CallbackQuery):
+                add_duplictes(duplicate_user_data, unique_user_data, cert_data_from_user, 'y')
+                await message.reply(f"Уникальные сертификаты закгружены, дубликаты сертификатов в базе обновлены",
+                                    reply_markup=markup_back)
+                await state.finish()
+
+            @dp.callback_query_handler(text='no', state=[FSMAdmin.upload_certificates])
+            async def callback_no_cert(callback: types.CallbackQuery):
+                add_duplictes(duplicate_user_data, unique_user_data, cert_data_from_user, 'no')
+                await message.reply(f"Уникальные сертификаты успешно добавлены в базу данных", reply_markup=markup_back)
+                await state.finish()
+
+
+@dp.message_handler(content_types=types.ContentType.ANY, state=FSMAdmin.upload_products)
+async def load_products_to_postgresql(message: types.Message, state: FSMContext):
+    if message.content_type != 'document':
+        await FSMAdmin.upload_products.set()
+        await message.answer('Загружать файлы можно только в формате .xlsx',
+                             reply_markup=markup_back)
+    else:
+        file_extantion = '.' + message.document.file_name.split('.')[-1]
+        if file_extantion != '.xlsx' and file_extantion != '.xls':
+            await FSMAdmin.upload_products.set()
+            await message.answer('Документ должен быть в формате .xls или .xlsx', reply_markup=markup_back)
+        else:
+            doc = message.document.file_name
+            products_data_from_user = get_product_info_from_user(doc)
+            products_data_list = products_data_from_user[0]
+            possible_change = products_data_from_user[1]
+            approved_data_list = products_data_from_user[2]
+            data_list_to_check = products_data_from_user[-1]
+            duplicate_user_data = \
+                find_unique_and_duplicate_data(universal_query('bilight_products', 'product_id'),
+                                               products_data_from_user)[-1]
+            unique_user_data = \
+                find_unique_and_duplicate_data(universal_query('bilight_products', 'product_id'),
+                                               products_data_from_user)[0]
+            if possible_change:
+                await message.reply(f"В вашем файле присуствуют поставщики которых"
+                                    f" нет в списке поставщиков в базе даных\n"
+                                    f"Если хотите проверить данные, нажмите 'ДА' и программа"
+                                    f" отправит вам файл с возможными заменами, артикулы с корректными "
+                                    f"поставщиками будут згружены\n"
+                                    f"если вы уверены в своем выборе нажмите 'НЕТ' и программа добавит в"
+                                    f"таблицу новых поставщиков", reply_markup=markup_question)
+
+            else:
+                add_products(test(doc, data_list_to_check, approved_data_list, products_data_list,
+                                  possible_change, 'no'))
+                await message.reply(f"Артикулы закгружены",
+                                    reply_markup=markup_back)
+                await state.finish()
+
+            @dp.callback_query_handler(text='yes', state=[FSMAdmin.upload_products])
+            async def callback_yes_prod(callback: types.CallbackQuery):
+                add_products(test(doc, data_list_to_check, approved_data_list, products_data_list,
+                                  possible_change, 'y'))
+                reply_possibel_changes = open(r"possible_changes.xlsx", 'rb')
+                await callback.message.reply_document(reply_possibel_changes)
+                await message.reply(
+                    f"Артикулы с корректными поставщиками  загружены, "
+                    f"предполагаемые замены поставщиков в подготовленном файле", reply_markup=markup_back)
+                await state.finish()
+
+            @dp.callback_query_handler(text='no', state=[FSMAdmin.upload_products])
+            async def callback_no_prod(callback: types.CallbackQuery):
+                add_products(test(doc, data_list_to_check, approved_data_list, products_data_list,
+                                      possible_change, 'no'))
+                await message.reply(f"Уникальные сертификаты успешно добавлены в базу данных", reply_markup=markup_back)
+                await state.finish()
 
 
 @dp.callback_query_handler(text='back', state=[FSMAdmin.upload_new_data, FSMAdmin.download_new_data,
