@@ -131,6 +131,34 @@ def make_replacement(existing_pkey, user_data, table_name, where_filter):
 
 # endregion
 
+# region Helpers
+def make_dict(query):
+    output_dict = {}
+    for x in query:
+        if x[1] not in output_dict:
+            output_dict[x[1]] = x[0]
+        else:
+            pass
+    return output_dict
+
+def make_possible_change_dict(dict_to_compression, user_data_list):
+    possible_change_list = []
+    for i in range(len(user_data_list)):
+        tmp_list = []
+        editorial_number = get_editorial_num(user_data_list[i][3])
+        for key in dict_to_compression.keys():
+            if editorial_number >= calculate_levinstain_distance(key, user_data_list[i][3].upper()):
+                tmp_list.append(key.upper())
+            else:
+                continue
+        tmp_list.append((user_data_list[i][3]))
+        possible_change_list.append(tmp_list)
+    possible_change_dict = {}
+    for j in range(len(possible_change_list)):
+        possible_change_dict[possible_change_list[j][-1]] = possible_change_list[j][:-1]
+    return possible_change_dict
+# endregion
+
 
 # region Get_info_from_user
 def get_cert_info_from_user(file_path):
@@ -153,109 +181,81 @@ def get_cert_info_from_user(file_path):
 
 
 def get_product_info_from_user(file_path):
-    def make_manufacrurer_dict(query):
-        manufacturer_dict = {}
-        for x in query:
-            if x[1] not in manufacturer_dict:
-                manufacturer_dict[x[1]] = x[0]
-            else:
-                pass
-        return manufacturer_dict
+    products_data_list = []
+    book = openpyxl.open(file_path, read_only=True, data_only=True)
+    sheet = book.active
+    for row in range(2, sheet.max_row + 1):
+        tmp_list = []
+        for column in range(0, 7):
+            tmp_list.append(sheet[row][column].value)
+        products_data_list.append(tmp_list)
+    return products_data_list
+def check_existing_manufacturers(products_data_list,):
+    manufacturer_dict = make_dict(universal_query('manufacturers', '*'))
+    print(manufacturer_dict)
+    print(products_data_list)
+    approved_data_list = []
+    data_list_to_check = []
+    for i in range(len(products_data_list)):
+        if products_data_list[i][3].upper() in manufacturer_dict:
+            products_data_list[i][3] = manufacturer_dict[products_data_list[i][3].upper()]
+            approved_data_list.append(products_data_list[i])
+        else:
+            data_list_to_check.append(products_data_list[i])
+    possible_change = make_possible_change_dict(manufacturer_dict, data_list_to_check)
 
-    def make_possible_change_dict(dict_to_compression, user_data_list):
-        possible_change_list = []
-        for i in range(len(user_data_list)):
-            tmp_list = []
-            editorial_number = get_editorial_num(user_data_list[i][3])
-            for key in dict_to_compression.keys():
-                if editorial_number >= calculate_levinstain_distance(key, user_data_list[i][3].upper()):
-                    tmp_list.append(key.upper())
+    approved_for_verification_possible_chage_list = [approved_data_list,data_list_to_check,possible_change,products_data_list]
+    return approved_for_verification_possible_chage_list
+
+def get_replace_file_or_not(file_path,check_list,question):
+    data_list_to_check = check_list[1]
+    products_data_list = check_list[-1]
+    possible_change = check_list[-2]
+    approved_data_list = check_list[0]
+    if question != 'y':
+        try:
+            connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
+                                       password=os.getenv('password'), host=os.getenv('host'))
+            connect.autocommit = True
+            cursor = connect.cursor()
+            print("Postgre SQL successfully conected")
+            for j in range(len(data_list_to_check)):
+                cursor.execute(f"INSERT INTO manufacturers (manufacturer_name) "
+                               f"VALUES ('{data_list_to_check[j][3].upper()}')")
+            manufacturer_dict = make_dict(universal_query('manufacturers', '*'))
+            for i in range(len(products_data_list)):
+                if str(products_data_list[i][3]).upper() in manufacturer_dict.keys():
+                    products_data_list[i][3] = manufacturer_dict[products_data_list[i][3].upper()]
                 else:
-                    continue
-            tmp_list.append((user_data_list[i][3]))
-            possible_change_list.append(tmp_list)
-        possible_change_dict = {}
-        for j in range(len(possible_change_list)):
-            possible_change_dict[possible_change_list[j][-1]] = possible_change_list[j][:-1]
-        return possible_change_dict
-
-    if os.path.isfile(file_path):
-        products_data_list = []
-        book = openpyxl.open(file_path, read_only=True, data_only=True)
+                    pass
+        except Exception as _ex:
+            print(f"[INFO] ERROR while working with data base {_ex}")
+        finally:
+            cursor.close()
+            connect.close()
+            print("Postgre SQL Connection closed")
+            return products_data_list
+    else:
+        shutil.copy(rf"{file_path}", rf"possible_changes.xlsx")
+        book = openpyxl.open(rf"possible_changes.xlsx", read_only=False, data_only=True)
         sheet = book.active
         for row in range(2, sheet.max_row + 1):
-            tmp_list = []
-            for column in range(0, 7):
-                tmp_list.append(sheet[row][column].value)
-            products_data_list.append(tmp_list)
-        manufacturer_dict = make_manufacrurer_dict(universal_query('manufacturers', '*'))
-        print(manufacturer_dict)
-        print(products_data_list)
-        approved_data_list = []
-        data_list_to_check = []
-        for i in range(len(products_data_list)):
-            if products_data_list[i][3].upper() in manufacturer_dict:
-                products_data_list[i][3] = manufacturer_dict[products_data_list[i][3].upper()]
-                approved_data_list.append(products_data_list[i])
+            if sheet[row][3].value not in possible_change.keys():
+                sheet.delete_rows(idx=row)
             else:
-                data_list_to_check.append(products_data_list[i])
-        possible_change = make_possible_change_dict(manufacturer_dict, data_list_to_check)
-        if possible_change:
-            question = input(str(f"В вашем файле присуствуют поставщики которых"
-                                                             f" нет в списке поставщиков в базе даных\n"
-                                                             f"Если хотите проверить данные, нажмите 'y' и программа"
-                                 
-                                                             f" отправит вам файл с возможными заменами\n"
-                                                             f"если вы уверены в своем выборе нажмите любую"
-                                                             f" другую кнопку и программа добавит в"
-                                                             f" таблицу новых поставщиков"))
-            if question != 'y':
-                try:
-                    connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
-                                               password=os.getenv('password'), host=os.getenv('host'))
-                    connect.autocommit = True
-                    cursor = connect.cursor()
-                    print("Postgre SQL successfully conected")
-                    for j in range(len(data_list_to_check)):
-                        cursor.execute(f"INSERT INTO manufacturers (manufacturer_name) "
-                                       f"VALUES ('{data_list_to_check[j][3].upper()}')")
-                    manufacturer_dict = make_manufacrurer_dict(universal_query('manufacturers', '*'))
-                    for i in range(len(products_data_list)):
-                        if str(products_data_list[i][3]).upper() in manufacturer_dict.keys():
-                            products_data_list[i][3] = manufacturer_dict[products_data_list[i][3].upper()]
-                        else:
-                            pass
-                except Exception as _ex:
-                    print(f"[INFO] ERROR while working with data base {_ex}")
-                finally:
-                    cursor.close()
-                    connect.close()
-                    print("Postgre SQL Connection closed")
-                    return products_data_list
-            else:
-                shutil.copy(rf"{file_path}", rf"possible_changes.xlsx")
-                book = openpyxl.open(rf"possible_changes.xlsx", read_only=False, data_only=True)
-                sheet = book.active
-                for row in range(2, sheet.max_row + 1):
-                    if sheet[row][3].value not in possible_change.keys():
-                        sheet.delete_rows(idx=row)
-                    else:
-                        pass
-                for row in range(2, sheet.max_row + 1):
-                    if sheet[row][3].value in possible_change.keys():
-                        sheet[row][3].value = f" Список замен для производителя {sheet[row][3].value}" \
-                                              f" следующий:\n" \
-                                              f"{possible_change[sheet[row][3].value]}"
+                pass
+        for row in range(2, sheet.max_row + 1):
+            if sheet[row][3].value in possible_change.keys():
+                sheet[row][3].value = f" Список замен для производителя {sheet[row][3].value}" \
+                                      f" следующий:\n" \
+                                      f"{possible_change[sheet[row][3].value]}"
 
 
-                book.save(rf"possible_changes.xlsx")
-                book.close()
-                return approved_data_list
-        else:
-            return products_data_list
+        book.save(rf"possible_changes.xlsx")
+        book.close()
+        return approved_data_list
 
-    else:
-        raise ValueError("The function argument must be a file")
+
 
 
 # endregion
@@ -275,6 +275,58 @@ def find_unique_and_duplicate_data(universal_query,data_from_user):
             unique_user_data.append(data_from_user[i])
     output_list = [unique_user_data,duplicate_user_data]
     return output_list
+
+
+def check_duplicates(products_data_from_user,duplicate_user_data,unique_user_data,question):
+    try:
+        connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
+                                   password=os.getenv('password'), host=os.getenv('host'))
+        connect.autocommit = True
+        cursor = connect.cursor()
+        if duplicate_user_data:
+            if unique_user_data != '':
+                cursor.executemany(f""" INSERT INTO bilight_products (product_id,order_code,article,
+                                                                manufacturer_id,product_name,tnved_id,certificate_id)
+                                                                VALUES
+                                                                (%s,%s,%s,%s,%s,%s,%s) """, unique_user_data)
+            else:
+                pass
+            if question == 'y':
+                existing_pkey = duplicate_user_data
+                make_replacement(existing_pkey, duplicate_user_data, 'bilight_products', 'product_id')
+            else:
+                pass
+        else:
+            cursor.executemany(f""" INSERT INTO bilight_products (product_id,order_code,article,
+                                                                manufacturer_id,product_name,tnved_id,certificate_id)
+                                                                VALUES
+                                                                (%s,%s,%s,%s,%s,%s,%s) """, products_data_from_user)
+    except Exception as _ex:
+        print(f"[INFO] ERROR while working with data base {_ex}")
+    finally:
+        cursor.close()
+        connect.close()
+        print("Postgre SQL Connection closed")
+
+
+
+def add_products(products_data_from_user):
+    try:
+        connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
+                                   password=os.getenv('password'), host=os.getenv('host'))
+        connect.autocommit = True
+        cursor = connect.cursor()
+        cursor.executemany(f""" INSERT INTO bilight_products (product_id,order_code,article,
+                                                                manufacturer_id,product_name,tnved_id,certificate_id)
+                                                                VALUES
+                                                                (%s,%s,%s,%s,%s,%s,%s) """, products_data_from_user)
+    except Exception as _ex:
+        print(f"[INFO] ERROR while working with data base {_ex}")
+    finally:
+        cursor.close()
+        connect.close()
+        print("Postgre SQL Connection closed")
+
 def add_certificates(cert_data_from_user):
     duplicate_user_data = find_unique_and_duplicate_data(universal_query('certificates', 'certificate_id'),cert_data_from_user)[-1]
     unique_user_data = find_unique_and_duplicate_data(universal_query('certificates', 'certificate_id'),cert_data_from_user)[0]
@@ -309,47 +361,6 @@ def add_certificates(cert_data_from_user):
         cursor.close()
         connect.close()
         print("Postgre SQL Connection closed")
-
-
-def add_products(products_data_from_user):
-    duplicate_user_data = \
-    find_unique_and_duplicate_data(universal_query('bilight_products', 'product_id'), products_data_from_user)[-1]
-    unique_user_data = \
-    find_unique_and_duplicate_data(universal_query('bilight_products', 'product_id'), products_data_from_user)[0]
-
-    try:
-        connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
-                                   password=os.getenv('password'), host=os.getenv('host'))
-        connect.autocommit = True
-        cursor = connect.cursor()
-        if duplicate_user_data:
-            if unique_user_data != '':
-                cursor.executemany(f""" INSERT INTO bilight_products (product_id,order_code,article,
-                                                                manufacturer_id,product_name,tnved_id,certificate_id)
-                                                                VALUES
-                                                                (%s,%s,%s,%s,%s,%s,%s) """, unique_user_data)
-            else:
-                pass
-            add_duplicates_question = str(input(f'В базе данные обнаружены дубликаты данных'
-                                                f' по следующим ID {duplicate_user_data}. Заменить данные? y/n?'))
-            if add_duplicates_question == 'y':
-                existing_pkey = duplicate_user_data
-                make_replacement(existing_pkey, duplicate_user_data, 'bilight_products', 'product_id')
-            else:
-                pass
-        else:
-            cursor.executemany(f""" INSERT INTO bilight_products (product_id,order_code,article,
-                                                                manufacturer_id,product_name,tnved_id,certificate_id)
-                                                                VALUES
-                                                                (%s,%s,%s,%s,%s,%s,%s) """, products_data_from_user)
-    except Exception as _ex:
-        print(f"[INFO] ERROR while working with data base {_ex}")
-    finally:
-        cursor.close()
-        connect.close()
-        print("Postgre SQL Connection closed")
-
-
 # endregion
 
 
@@ -372,7 +383,7 @@ def add_duplictes(duplicate_user_data,unique_user_data,data_from_user,question):
                 pass
             if question == 'y':
                 existing_pkey = duplicate_user_data
-                make_replacement(existing_pkey, duplicate_user_data, 'certificates', 'certificate_id')
+                make_replacement(existing_pkey, duplicate_user_data, 'bilght_products', 'product_id')
             else:
                 pass
         else:
@@ -387,95 +398,3 @@ def add_duplictes(duplicate_user_data,unique_user_data,data_from_user,question):
         connect.close()
         print("Postgre SQL Connection closed")
 
-def make_manufacrurer_dict(query):
-    manufacturer_dict = {}
-    for x in query:
-        if x[1] not in manufacturer_dict:
-            manufacturer_dict[x[1]] = x[0]
-        else:
-            pass
-    return manufacturer_dict
-
-def get_product_info_from_user(file_path):
-    def make_possible_change_dict(dict_to_compression, user_data_list):
-        possible_change_list = []
-        for i in range(len(user_data_list)):
-            tmp_list = []
-            editorial_number = get_editorial_num(user_data_list[i][3])
-            for key in dict_to_compression.keys():
-                if editorial_number >= calculate_levinstain_distance(key, user_data_list[i][3].upper()):
-                    tmp_list.append(key.upper())
-                else:
-                    continue
-            tmp_list.append((user_data_list[i][3]))
-            possible_change_list.append(tmp_list)
-        possible_change_dict = {}
-        for j in range(len(possible_change_list)):
-            possible_change_dict[possible_change_list[j][-1]] = possible_change_list[j][:-1]
-        return possible_change_dict
-    products_data_list = []
-    book = openpyxl.open(file_path, read_only=True, data_only=True)
-    sheet = book.active
-    for row in range(2, sheet.max_row + 1):
-        tmp_list = []
-        for column in range(0, 7):
-            tmp_list.append(sheet[row][column].value)
-        products_data_list.append(tmp_list)
-    manufacturer_dict = make_manufacrurer_dict(universal_query('manufacturers', '*'))
-    approved_data_list = []
-    data_list_to_check = []
-    for i in range(len(products_data_list)):
-        if products_data_list[i][3].upper() in manufacturer_dict:
-            products_data_list[i][3] = manufacturer_dict[products_data_list[i][3].upper()]
-            approved_data_list.append(products_data_list[i])
-        else:
-            data_list_to_check.append(products_data_list[i])
-    possible_change = make_possible_change_dict(manufacturer_dict, data_list_to_check)
-    output_list = [products_data_list,possible_change,approved_data_list,data_list_to_check]
-    return output_list
-
-
-def test(file_path,data_list_to_check,approved_data_list,products_data_list,possible_change,question):
-    if question != 'y':
-        try:
-            connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
-                                       password=os.getenv('password'), host=os.getenv('host'))
-            connect.autocommit = True
-            cursor = connect.cursor()
-            print("Postgre SQL successfully conected")
-            for j in range(len(data_list_to_check)):
-                cursor.execute(f"INSERT INTO manufacturers (manufacturer_name) "
-                               f"VALUES ('{data_list_to_check[j][3].upper()}')")
-            manufacturer_dict = make_manufacrurer_dict(universal_query('manufacturers', '*'))
-            for i in range(len(products_data_list)):
-                if str(products_data_list[i][3]).upper() in manufacturer_dict.keys():
-                    products_data_list[i][3] = manufacturer_dict[products_data_list[i][3].upper()]
-                else:
-                    pass
-        except Exception as _ex:
-            print(f"[INFO] ERROR while working with data base {_ex}")
-        finally:
-            cursor.close()
-            connect.close()
-            print("Postgre SQL Connection closed")
-            return products_data_list
-    else:
-        shutil.copy(rf"{file_path}", rf"possible_changes.xlsx")
-        book = openpyxl.open(rf"possible_changes.xlsx", read_only=False, data_only=True)
-        sheet = book.active
-        for row in range(2, sheet.max_row + 1):
-            if sheet[row][3].value not in possible_change.keys():
-                sheet.delete_rows(idx=row)
-            else:
-                pass
-        for row in range(2, sheet.max_row + 1):
-            if sheet[row][3].value in possible_change.keys():
-                sheet[row][3].value = f" Список замен для производителя {sheet[row][3].value}" \
-                                      f" следующий:\n" \
-                                      f"{possible_change[sheet[row][3].value]}"
-
-                book.save(rf"possible_changes.xlsx")
-                book.close()
-                return approved_data_list
-            else:
-                return products_data_list
