@@ -20,7 +20,7 @@ def main():
     # add_products(get_product_info_from_user('products_upload_template.xlsx'))
     # column_name_query('information_schema.columns','certificates','column_name')
     # pass
-    # table_data_query('information_schema.columns', 'certificates', 'column_name')
+    # get_column_name_list('information_schema.columns', 'certificates', 'column_name')
     pass
 
 
@@ -112,6 +112,7 @@ def get_editorial_num(input_string):
 # region Make replacment
 def make_replacement(existing_pkey, user_data, table_name, where_filter):
     columns_name_list = table_data_query('information_schema.columns', table_name, 'column_name')
+    print(columns_name_list)
     try:
         connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
                                    password=os.getenv('password'), host=os.getenv('host'))
