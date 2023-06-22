@@ -205,6 +205,7 @@ def get_product_info_from_user(file_path):
         for column in range(0, 7):
             tmp_list.append(sheet[row][column].value)
         products_data_list.append(tmp_list)
+    book.close()
     return products_data_list
 # endregion
 
@@ -235,7 +236,11 @@ def manufacturers_to_check_data_list(products_data_list):
 # endregion
 
 # region Unique or Not
-def find_duplicate_data(universal_query,data_from_user):
+def find_duplicate_data(universal_query,file_name):
+    data_from_user = get_product_info_from_user(file_name)
+    print('*'*10)
+    print(data_from_user)
+    print('*' * 10)
     existing_pkey = universal_query
     existing_pkey = [x[0] for x in existing_pkey]
     duplicate_user_data = []
@@ -319,6 +324,8 @@ def add_products(products_data_from_user):
         cursor.close()
         connect.close()
         print("Postgre SQL Connection closed")
+
+
 
 
 
