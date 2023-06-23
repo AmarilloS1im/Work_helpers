@@ -238,9 +238,6 @@ def manufacturers_to_check_data_list(products_data_list):
 # region Unique or Not
 def find_duplicate_data(universal_query,file_name):
     data_from_user = get_product_info_from_user(file_name)
-    print('*'*10)
-    print(data_from_user)
-    print('*' * 10)
     existing_pkey = universal_query
     existing_pkey = [x[0] for x in existing_pkey]
     duplicate_user_data = []
@@ -324,6 +321,86 @@ def add_products(products_data_from_user):
         cursor.close()
         connect.close()
         print("Postgre SQL Connection closed")
+
+
+# region Certification
+def get_cert_info_from_user(file_path):
+    certification_data_list = []
+    book = openpyxl.open(file_path, read_only=True, data_only=True)
+    sheet = book.active
+    for row in range(3, sheet.max_row + 1):
+        tmp_list = []
+        for column in range(0, 5):
+            tmp_list.append(sheet[row][column].value)
+        if None in tmp_list:
+            print("Columns can't be empty")
+            return None
+        else:
+            certification_data_list.append(tmp_list)
+    print(certification_data_list)
+    return certification_data_list
+
+def add_certificates(cert_data_from_user):
+    try:
+        connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
+                                   password=os.getenv('password'), host=os.getenv('host'))
+        connect.autocommit = True
+        cursor = connect.cursor()
+        cursor.executemany(f""" INSERT INTO certificates (certificate_id,certificate_number,certificate_type_id,
+                                                start_date,end_date)
+                                                VALUES
+                                                (%s,%s,%s,%s,%s) """, cert_data_from_user)
+    except Exception as _ex:
+        print(f"[INFO] ERROR while working with data base {_ex}")
+    finally:
+        cursor.close()
+        connect.close()
+        print("Postgre SQL Connection closed")
+
+def find_cert_duplicate_data(universal_query,file_name):
+    data_from_user = get_cert_info_from_user(file_name)
+    existing_pkey = universal_query
+    existing_pkey = [x[0] for x in existing_pkey]
+    duplicate_user_data = []
+
+    for i in range(len(data_from_user)):
+        if data_from_user[i][0] in existing_pkey:
+            duplicate_user_data.append(data_from_user[i])
+        else:
+            pass
+    return duplicate_user_data
+
+def find_cert_unique_data(universal_query, data_from_user):
+    existing_pkey = universal_query
+    existing_pkey = [x[0] for x in existing_pkey]
+    unique_user_data = []
+    for i in range(len(data_from_user)):
+        if data_from_user[i][0] not in existing_pkey:
+            unique_user_data.append(data_from_user[i])
+        else:
+            pass
+    return unique_user_data
+
+
+def add_cert_duplicate_user_data(duplicate_data):
+    try:
+        connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
+                                   password=os.getenv('password'), host=os.getenv('host'))
+        connect.autocommit = True
+        cursor = connect.cursor()
+        if duplicate_data:
+            existing_pkey = duplicate_data
+            make_replacement(existing_pkey, duplicate_data, 'certificates', 'certificate_id')
+        else:
+            pass
+    except Exception as _ex:
+        print(f"[INFO] ERROR while working with data base {_ex}")
+    finally:
+        cursor.close()
+        connect.close()
+        print("Postgre SQL Connection closed")
+
+# endregion
 
 
 

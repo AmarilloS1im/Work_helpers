@@ -18,12 +18,10 @@ dp = Dispatcher(bot, storage=storage)
 # region FSMAdmin
 class FSMAdmin(StatesGroup):
     upload_new_data = State()
-    download_new_data = State()
     upload_certificates = State()
     upload_products = State()
     check_dup = State()
-
-
+    get_data = State()
 # endregion
 
 
@@ -62,6 +60,17 @@ upload_products = types.InlineKeyboardButton('Загрузить артикул�
 markup_upload_certificates_products = types.InlineKeyboardMarkup(row_width=1)
 markup_upload_certificates_products.add(upload_certificates, upload_products, button_back)
 
+duplicate_cert_button_yes = types.InlineKeyboardButton('Да', callback_data='cert_duplicate_yes')
+duplicate_cert_button_no = types.InlineKeyboardButton('Нет', callback_data='cert_duplicate_no')
+markup_cert_duplicate_question = types.InlineKeyboardMarkup(row_width=2)
+markup_cert_duplicate_question.add(duplicate_cert_button_yes, duplicate_cert_button_no, button_back)
+
+
+get_data_by_supplier_button = types.InlineKeyboardButton('Получить информацию о поставщике', callback_data='supplier_info')
+get_data_by_cert_button = types.InlineKeyboardButton('Получить информацию о сертификатах', callback_data='cert_info')
+markup_get_data = types.InlineKeyboardMarkup(row_width=1)
+markup_get_data.add(get_data_by_supplier_button, get_data_by_cert_button, button_back)
+
 
 # endregion
 
@@ -99,48 +108,68 @@ async def callback_products_upload(callback: types.CallbackQuery):
     await callback.message.answer(f"ЧТОБЫ ЗАГРУЗИТЕ ДОКУМЕНТ\n"
                                   f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
 
+@dp.callback_query_handler(text='get_data')
+async def callback_products_upload(callback: types.CallbackQuery):
+    await FSMAdmin.get_data.set()
+    await callback.message.answer(f"ЧТОБЫ ЗАГРУЗИТЕ ДОКУМЕНТ\n"
+                                  f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_get_data)
+
 
 # endregion
 
 
-# @dp.message_handler(content_types=types.ContentType.ANY, state=FSMAdmin.upload_certificates)
-# async def load_certificates_to_postgresql(message: types.Message, state: FSMContext):
-#     if message.content_type != 'document':
-#         await FSMAdmin.upload_certificates.set()
-#         await message.answer('Загружать файлы можно только в формате .xlsx',
-#                              reply_markup=markup_back)
-#     else:
-#         file_extantion = '.' + message.document.file_name.split('.')[-1]
-#         if file_extantion != '.xlsx' and file_extantion != '.xls':
-#             await FSMAdmin.upload_certificates.set()
-#             await message.answer('Документ должен быть в формате .xls или .xlsx', reply_markup=markup_back)
-#         else:
-#             doc = message.document.file_name
-#             cert_data_from_user = get_cert_info_from_user(doc)
-#             duplicate_user_data = \
-#
-#             if duplicate_user_data:
-#                 await message.reply(f"В базе данные обнаружены дубликаты данных по следующим ID"
-#                                     f" {duplicate_user_data}. Заменить данные? y/n?", reply_markup=markup_question)
-#
-#             else:
-#                 add_duplictes(duplicate_user_data, unique_user_data, cert_data_from_user, 'no')
-#                 await message.reply(f"Cертификаты закгружены",
-#                                     reply_markup=markup_back)
-#                 await state.finish()
-#
-#             @dp.callback_query_handler(text='yes', state=[FSMAdmin.upload_certificates])
-#             async def callback_yes_cert(callback: types.CallbackQuery):
-#                 add_duplictes(duplicate_user_data, unique_user_data, cert_data_from_user, 'y')
-#                 await message.reply(f"Уникальные сертификаты закгружены, дубликаты сертификатов в базе обновлены",
-#                                     reply_markup=markup_back)
-#                 await state.finish()
-#
-#             @dp.callback_query_handler(text='no', state=[FSMAdmin.upload_certificates])
-#             async def callback_no_cert(callback: types.CallbackQuery):
-#                 add_duplictes(duplicate_user_data, unique_user_data, cert_data_from_user, 'no')
-#                 await message.reply(f"Уникальные сертификаты успешно добавлены в базу данных", reply_markup=markup_back)
-#                 await state.finish()
+@dp.message_handler(content_types=types.ContentType.ANY, state=FSMAdmin.upload_certificates)
+async def load_certificates_to_postgresql(message: types.Message, state: FSMContext):
+    if message.content_type != 'document':
+        await FSMAdmin.upload_certificates.set()
+        await message.answer('Загружать файлы можно только в формате .xlsx',
+                             reply_markup=markup_back)
+    else:
+        file_extantion = '.' + message.document.file_name.split('.')[-1]
+        if file_extantion != '.xlsx' and file_extantion != '.xls':
+            await FSMAdmin.upload_certificates.set()
+            await message.answer('Документ должен быть в формате .xls или .xlsx', reply_markup=markup_back)
+        else:
+            doc = message.document.file_name
+            cert_data_from_user = get_cert_info_from_user(doc)
+            unique_data = find_cert_unique_data(universal_query('certificates', '*'), cert_data_from_user)
+            duplicate_data = find_cert_duplicate_data(universal_query('certificates', '*'), doc)
+            async with state.proxy() as data:
+                data['doc'] = doc
+                data['cert_data_from_user'] = cert_data_from_user
+                data['unique_data'] = unique_data
+                data['duplicate_data'] = duplicate_data
+            if duplicate_data:
+                await message.reply(f"В базе данные обнаружены дубликаты данных по следующим ID"
+                                    f" {duplicate_data}. Заменить данные? y/n?",
+                                    reply_markup=markup_cert_duplicate_question)
+
+            else:
+                add_certificates(unique_data)
+                await message.reply(f"Cертификаты закгружены",
+                                    reply_markup=markup_back)
+                await state.finish()
+
+
+@dp.callback_query_handler(text='cert_duplicate_yes', state=[FSMAdmin.upload_certificates])
+async def callback_yes_cert(callback: types.CallbackQuery, state=FSMContext):
+    async with state.proxy() as data:
+        unique_data = data['unique_data']
+        duplicate_data = data['duplicate_data']
+    add_certificates(unique_data)
+    add_cert_duplicate_user_data(duplicate_data)
+    await callback.message.reply(f"Уникальные сертификаты закгружены, дубликаты сертификатов в базе обновлены",
+                                 reply_markup=markup_back)
+    await state.finish()
+
+
+@dp.callback_query_handler(text='cert_duplicate_no', state=[FSMAdmin.upload_certificates])
+async def callback_no_cert(callback: types.CallbackQuery, state=FSMContext):
+    async with state.proxy() as data:
+        unique_data = data['unique_data']
+    add_certificates(unique_data)
+    await callback.message.reply(f"Уникальные сертификаты успешно добавлены в базу данных", reply_markup=markup_back)
+    await state.finish()
 
 
 @dp.message_handler(content_types=types.ContentType.ANY, state=[FSMAdmin.upload_products, FSMAdmin.check_dup])
@@ -160,10 +189,11 @@ async def load_products_to_postgresql(message: types.Message, state: FSMContext)
             manufacturers_dict = make_dict(universal_query('manufacturers', '*'))
             approved_manufacterers_data = approved_manufactureres_data_list(data_from_user, manufacturers_dict)
             manufacturers_data_to_check = manufacturers_to_check_data_list(data_from_user)
-            unique_data = find_unique_data(manufacturers_dict, data_from_user)
+            unique_data = find_unique_data(universal_query('bilight_products', '*'), data_from_user)
             duplicate_data = find_duplicate_data(universal_query('bilight_products', '*'), doc)
             possible_change = make_possible_change_dict(manufacturers_dict, data_from_user)
             yes = False
+            yes_without_make_pos_change_file = False
             async with state.proxy() as data:
                 data['doc'] = doc
                 data['data_from_user'] = data_from_user
@@ -174,6 +204,7 @@ async def load_products_to_postgresql(message: types.Message, state: FSMContext)
                 data['duplicate_data'] = duplicate_data
                 data['possible_change'] = possible_change
                 data['yes'] = yes
+                data['yes_without_make_pos_change_file'] = yes_without_make_pos_change_file
             if possible_change:
                 await FSMAdmin.upload_products.set()
                 await message.reply(f"В вашем файле присуствуют поставщики которых"
@@ -187,6 +218,10 @@ async def load_products_to_postgresql(message: types.Message, state: FSMContext)
             else:
                 if duplicate_data:
                     await FSMAdmin.check_dup.set()
+                    yes_without_make_pos_change_file = True
+                    async with state.proxy() as data:
+                        data['yes_without_make_pos_change_file'] = yes_without_make_pos_change_file
+
                     await message.reply(f"В базе данные обнаружены дубликаты данных"
                                         f" по следующим ID {duplicate_data}."
                                         f" Заменить данные?", reply_markup=markup_duplicate_question)
@@ -228,23 +263,27 @@ async def callback_yes_prod(callback: types.CallbackQuery, state=FSMContext):
 
 @dp.callback_query_handler(text='no', state=[FSMAdmin.upload_products, FSMAdmin.check_dup])
 async def callback_no_prod(callback: types.CallbackQuery, state=FSMContext):
+    add_permition = True
+    async with state.proxy() as data:
+        data['add_permition'] = add_permition
     async with state.proxy() as data:
         data_from_user = data['data_from_user']
         manufacturers_dict = data['manufacturers_dict']
         unique_data = data['unique_data']
         duplicate_data = data['duplicate_data']
+
     if duplicate_data:
         await FSMAdmin.check_dup.set()
         await callback.message.reply(f"В базе данные обнаружены дубликаты данных"
                                      f" по следующим ID {duplicate_data}."
                                      f" Заменить данные?", reply_markup=markup_duplicate_question)
-    add_new_manufacturers(manufacturers_dict, data_from_user)
-    converted_manufacturers_data = convert_manufacturers_to_digit(unique_data)
-    print(converted_manufacturers_data)
-    add_products(converted_manufacturers_data)
-    await callback.message.reply(f"Артикулы и новые поставщики  успешно добавлены в базу данных",
-                                 reply_markup=markup_back)
-    await state.finish()
+    else:
+        add_new_manufacturers(manufacturers_dict, data_from_user)
+        converted_manufacturers_data = convert_manufacturers_to_digit(unique_data)
+        add_products(converted_manufacturers_data)
+        await callback.message.reply(f"Артикулы и новые поставщики  успешно добавлены в базу данных",
+                                     reply_markup=markup_back)
+        await state.finish()
 
 
 @dp.callback_query_handler(text='duplicate_yes', state=[FSMAdmin.check_dup, FSMAdmin.upload_products])
@@ -255,34 +294,66 @@ async def callback_yes_duplicate(callback: types.CallbackQuery, state=FSMContext
         doc = data['doc']
         duplicate_data = data['duplicate_data']
         possible_change = data['possible_change']
-    converted_manufacturers_data = convert_manufacturers_to_digit(duplicate_data)
-    add_duplicate_user_data(converted_manufacturers_data)
+        manufacturers_dict = data['manufacturers_dict']
+        data_from_user = data['data_from_user']
+        unique_data = data['unique_data']
+        yes_without_make_pos_change_file = data['yes_without_make_pos_change_file']
     if yes:
         get_replace_file(doc, possible_change)
         reply_possibel_changes = open(r"possible_changes.xlsx", 'rb')
+        converted_manufacturers_data = convert_manufacturers_to_digit(duplicate_data)
+        add_duplicate_user_data(converted_manufacturers_data)
         await callback.message.reply_document(reply_possibel_changes)
         await callback.message.reply(
             f"Артикулы с корректными поставщиками  загружены, "
             f"предполагаемые замены поставщиков в подготовленном файле", reply_markup=markup_back)
         await state.finish()
+    elif yes_without_make_pos_change_file:
+        converted_manufacturers_data = convert_manufacturers_to_digit(duplicate_data)
+        add_duplicate_user_data(converted_manufacturers_data)
+        await callback.message.reply(f"Артикулы успешно заменены",
+                                     reply_markup=markup_back)
+        await state.finish()
     else:
+        add_new_manufacturers(manufacturers_dict, data_from_user)
+        converted_manufacturers_data = convert_manufacturers_to_digit(duplicate_data)
+        add_duplicate_user_data(converted_manufacturers_data)
+        converted_manufacturers_data = convert_manufacturers_to_digit(unique_data)
+        add_unique_user_data(converted_manufacturers_data)
+
         await callback.message.reply(f"Артикулы и новые поставщики  успешно добавлены в базу данных",
                                      reply_markup=markup_back)
         await state.finish()
 
 
-
-
-
 @dp.callback_query_handler(text='duplicate_no', state=[FSMAdmin.check_dup, FSMAdmin.upload_products])
 async def callback_yes_duplicate(callback: types.CallbackQuery, state=FSMContext):
-    await callback.message.reply(f"Работа завершена, данные в базе остались без изменений",
-                                 reply_markup=markup_back)
-    await state.finish()
+    async with state.proxy() as data:
+        unique_data = data['unique_data']
+        add_permition = data['add_permition']
+        manufacturers_dict = data['manufacturers_dict']
+        data_from_user = data['data_from_user']
+    if add_permition:
+        add_new_manufacturers(manufacturers_dict, data_from_user)
+        converted_manufacturers_data = convert_manufacturers_to_digit(unique_data)
+        add_unique_user_data(converted_manufacturers_data)
+        await callback.message.reply(
+            f"Работа завершена, дубликаты данныех пользователя в базе остались без изменений, уникальные артикулы "
+            f"добавлены, новые поставщики добавлены",
+            reply_markup=markup_back)
+        await state.finish()
+    else:
+        converted_manufacturers_data = convert_manufacturers_to_digit(unique_data)
+        add_unique_user_data(converted_manufacturers_data)
+        await callback.message.reply(
+            f"Работа завершена, дубликаты данныех пользователя в базе остались без изменений, уникальные артикулы "
+            f"добавлены",
+            reply_markup=markup_back)
+        await state.finish()
 
 
 # region back button
-@dp.callback_query_handler(text='back', state=[FSMAdmin.upload_new_data, FSMAdmin.download_new_data,
+@dp.callback_query_handler(text='back', state=[FSMAdmin.upload_new_data, FSMAdmin.get_data,
                                                FSMAdmin.upload_certificates, FSMAdmin.upload_products,
                                                FSMAdmin.check_dup, None])
 async def callback_back_button(callback: types.CallbackQuery, state: FSMContext):
