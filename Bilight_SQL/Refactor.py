@@ -5,6 +5,10 @@ import openpyxl
 import shutil
 from dotenv import find_dotenv, load_dotenv
 load_dotenv(find_dotenv())
+from openpyxl.styles import colors
+from openpyxl.styles import Font, Color,Alignment
+from openpyxl.utils import get_column_letter
+
 
 
 
@@ -399,6 +403,108 @@ def add_cert_duplicate_user_data(duplicate_data):
         cursor.close()
         connect.close()
         print("Postgre SQL Connection closed")
+
+
+def get_all_article_from_db():
+    try:
+        connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
+                                   password=os.getenv('password'), host=os.getenv('host'))
+        connect.autocommit = True
+        cursor = connect.cursor()
+        cursor.execute(f"SELECT COUNT(*) FROM bilight_products")
+        table_len = cursor.fetchone()[0]
+        cursor.execute(f"SELECT product_id,order_code FROM bilight_products ")
+        all_articles = cursor.fetchmany(table_len)
+        return all_articles
+
+    except Exception as _ex:
+        print(f"[INFO] ERROR while working with data base {_ex}")
+    finally:
+        cursor.close()
+        connect.close()
+        print("Postgre SQL Connection closed")
+
+def get_manufacturer_id_by_article_query(article,):
+    try:
+        connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
+                                   password=os.getenv('password'), host=os.getenv('host'))
+        connect.autocommit = True
+        cursor = connect.cursor()
+        cursor.execute(
+            f"SELECT manufacturer_id FROM bilight_products WHERE product_id = '{article}' or order_code = '{article}'")
+        manufacturer_name = cursor.fetchone()[0]
+        return manufacturer_name
+    except Exception as _ex:
+        print(f"[INFO] ERROR while working with data base  {_ex}")
+    finally:
+        cursor.close()
+        connect.close()
+
+def make_manufacturer_list_file(file_path,all_article_from_db,reverse_manufacturer_dict):
+    shutil.copy(rf"{file_path}", rf"manufacturer_list_by_articles.xlsx")
+    book = openpyxl.open(rf"manufacturer_list_by_articles.xlsx", read_only=False, data_only=True)
+    sheet = book.active
+    font_header = Font(
+        name='Tahoma',
+        size=9,
+        bold=True,
+        italic=False,
+        vertAlign=None,
+        underline='none',
+        strike=False,
+        color='FF000000'
+    )
+    font_data_exsist = Font(
+        name='Tahoma',
+        size=9,
+        bold=True,
+        italic=False,
+        vertAlign=None,
+        underline='none',
+        strike=False,
+        color='FF005500'
+    )
+    font_data_not_exsist = Font(
+        name='Tahoma',
+        size=9,
+        bold=True,
+        italic=False,
+        vertAlign=None,
+        underline='none',
+        strike=False,
+        color='FFAA0000'
+    )
+    alignment = Alignment(horizontal='center',vertical='center',wrap_text=True)
+    max_col = sheet.max_column
+    tmp_list = []
+    sheet.cell(row=5, column=max_col + 1)
+    sheet[5][max_col].value = 'Производитель'
+    sheet[5][max_col].font = font_header
+    sheet[5][max_col].alignment = alignment
+    sheet.column_dimensions['H'].width = 20
+
+
+    for i in range(len(all_article_from_db)):
+        for j in range(len(all_article_from_db[i])):
+            tmp_list.append(all_article_from_db[i][j])
+    all_article_from_db = tmp_list
+    for row in range(6, sheet.max_row):
+        if sheet[row][1].value in all_article_from_db:
+            manufacturer_id = get_manufacturer_id_by_article_query(sheet[row][1].value)
+            sheet.cell(row=row, column=max_col +1)
+            sheet[row][max_col].value = reverse_manufacturer_dict[manufacturer_id]
+            sheet[row][max_col].font = font_data_exsist
+            sheet[row][max_col].alignment = alignment
+
+        else:
+            sheet.cell(row=row, column=max_col +1)
+            sheet[row][max_col].value = 'Нет данных'
+            sheet[row][max_col].font = font_data_not_exsist
+            sheet[row][max_col].alignment = alignment
+
+    book.save(rf"manufacturer_list_by_articles.xlsx")
+    book.close()
+
 
 # endregion
 

@@ -22,6 +22,8 @@ class FSMAdmin(StatesGroup):
     upload_products = State()
     check_dup = State()
     get_data = State()
+
+
 # endregion
 
 
@@ -65,8 +67,8 @@ duplicate_cert_button_no = types.InlineKeyboardButton('Нет', callback_data='c
 markup_cert_duplicate_question = types.InlineKeyboardMarkup(row_width=2)
 markup_cert_duplicate_question.add(duplicate_cert_button_yes, duplicate_cert_button_no, button_back)
 
-
-get_data_by_supplier_button = types.InlineKeyboardButton('Получить информацию о поставщике', callback_data='supplier_info')
+get_data_by_supplier_button = types.InlineKeyboardButton('Получить информацию о производителе',
+                                                         callback_data='manufacturer_info')
 get_data_by_cert_button = types.InlineKeyboardButton('Получить информацию о сертификатах', callback_data='cert_info')
 markup_get_data = types.InlineKeyboardMarkup(row_width=1)
 markup_get_data.add(get_data_by_supplier_button, get_data_by_cert_button, button_back)
@@ -108,11 +110,18 @@ async def callback_products_upload(callback: types.CallbackQuery):
     await callback.message.answer(f"ЧТОБЫ ЗАГРУЗИТЕ ДОКУМЕНТ\n"
                                   f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
 
+
 @dp.callback_query_handler(text='get_data')
 async def callback_products_upload(callback: types.CallbackQuery):
+    await callback.message.answer(f"xxx", reply_markup=markup_get_data)
+
+
+@dp.callback_query_handler(text='manufacturer_info')
+async def callback_get_manufacturere_info(callback: types.CallbackQuery):
     await FSMAdmin.get_data.set()
-    await callback.message.answer(f"ЧТОБЫ ЗАГРУЗИТЕ ДОКУМЕНТ\n"
-                                  f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_get_data)
+    await callback.message.answer(
+        f"Введите артикул либо, если артикулов много загрузите файл для выгрузки данных в эксель\n"
+        f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
 
 
 # endregion
@@ -327,7 +336,7 @@ async def callback_yes_duplicate(callback: types.CallbackQuery, state=FSMContext
 
 
 @dp.callback_query_handler(text='duplicate_no', state=[FSMAdmin.check_dup, FSMAdmin.upload_products])
-async def callback_yes_duplicate(callback: types.CallbackQuery, state=FSMContext):
+async def callback_no_duplicate(callback: types.CallbackQuery, state=FSMContext):
     async with state.proxy() as data:
         unique_data = data['unique_data']
         add_permition = data['add_permition']
@@ -363,6 +372,56 @@ async def callback_back_button(callback: types.CallbackQuery, state: FSMContext)
 
 
 # endregion
+
+
+@dp.message_handler(content_types=types.ContentType.ANY, state=FSMAdmin.get_data)
+async def get_manufacturer_by_article(message: types.Message, state: FSMContext):
+    await FSMAdmin.get_data.set()
+    manufacturers_dict = make_dict(universal_query('manufacturers', '*'))
+    reverse_manufacturer_dict = dict((v, k) for k, v in manufacturers_dict.items())
+    article = message.text
+    all_article_from_db = get_all_article_from_db()
+    if message.content_type == 'document':
+        file_name = message.document.file_name
+        make_manufacturer_list_file(file_name, all_article_from_db, reverse_manufacturer_dict)
+        manufacturer_list_by_articles = open(rf"manufacturer_list_by_articles.xlsx", 'rb')
+        await message.reply_document(manufacturer_list_by_articles)
+        await message.reply('Документ с поставщиками готов к скачиванию', reply_markup=markup_back)
+    elif message.content_type == 'text':
+        match = None
+        for i in range(len(all_article_from_db)):
+            for j in range(len(all_article_from_db[i])):
+                if str(all_article_from_db[i][j]).upper() == str(article).upper():
+                    match = all_article_from_db[i][j]
+                else:
+                    pass
+        if match is not None:
+            try:
+                connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
+                                           password=os.getenv('password'), host=os.getenv('host'))
+                connect.autocommit = True
+                cursor = connect.cursor()
+                cursor.execute(
+                    f"SELECT manufacturer_id FROM bilight_products "
+                    f"WHERE product_id = '{match}' or order_code = '{match}'")
+                manufacturer_name = cursor.fetchone()[0]
+            except Exception as _ex:
+                print(f"[INFO] ERROR while working with data base  {_ex}")
+            finally:
+                cursor.close()
+                connect.close()
+            if manufacturer_name in reverse_manufacturer_dict.keys():
+                await message.reply(f"{reverse_manufacturer_dict[manufacturer_name]}")
+                await message.reply(
+                    f"Введите следующий артикул, либо, если артикулов много загрузите"
+                    f" файл для выгрузки данных в эксель\n"
+                    f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
+
+        else:
+            await message.reply(f"Данный артикул в базе данных не найден, либо артикул введен не корректно\n"
+                                f"Проверьте правильно ли написан артикул и повторите поппытку\n"
+                                f"либо, если артикулов много загрузите файл для выгрузки данных в эксель\n"
+                                f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
 
 
 executor.start_polling(dp, skip_updates=True)
