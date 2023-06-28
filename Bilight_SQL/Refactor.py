@@ -68,6 +68,7 @@ def universal_query(table_name, *args):
         table_len = cursor.fetchone()[0]
         cursor.execute(f"SELECT {args} FROM {table_name}")
         query_data = cursor.fetchmany(table_len)
+        print(query_data)
         return query_data
     except Exception as _ex:
         print(f"[INFO] ERROR while working with data base {_ex}")
@@ -506,6 +507,141 @@ def make_manufacturer_list_file(file_path,all_article_from_db,reverse_manufactur
     book.close()
 
 
+def make_sertificate_dict(query):
+    output_dict = {}
+    for x in query:
+        if x[0] not in output_dict:
+            output_dict[x[0]] = x[1:]
+        else:
+            pass
+
+    return output_dict
+
+def get_certificate_id_by_article_query(article):
+    try:
+        connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
+                                   password=os.getenv('password'), host=os.getenv('host'))
+        connect.autocommit = True
+        cursor = connect.cursor()
+        cursor.execute(
+            f"SELECT certificate_id FROM bilight_products "
+            f"WHERE product_id = '{article}' or order_code = '{article}'")
+        certificate_id = cursor.fetchone()[0]
+        return certificate_id
+    except Exception as _ex:
+        print(f"[INFO] ERROR while working with data base  {_ex}")
+    finally:
+        cursor.close()
+        connect.close()
+
+
+def make_certificate_list_file(file_path,all_article_from_db,certificates_dict):
+    shutil.copy(rf"{file_path}", rf"certificates_list_by_article.xlsx")
+    book = openpyxl.open(rf"certificates_list_by_article.xlsx", read_only=False, data_only=True)
+    sheet = book.active
+    font_header = Font(
+        name='Tahoma',
+        size=9,
+        bold=True,
+        italic=False,
+        vertAlign=None,
+        underline='none',
+        strike=False,
+        color='FF000000'
+    )
+    font_data_exsist = Font(
+        name='Tahoma',
+        size=9,
+        bold=True,
+        italic=False,
+        vertAlign=None,
+        underline='none',
+        strike=False,
+        color='FF005500'
+    )
+    font_data_not_exsist = Font(
+        name='Tahoma',
+        size=9,
+        bold=True,
+        italic=False,
+        vertAlign=None,
+        underline='none',
+        strike=False,
+        color='FFAA0000'
+    )
+    alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    max_col = sheet.max_column
+    tmp_list = []
+    for i in range(1,5):
+        for j in range(5, sheet.max_row):
+            x = sheet.cell(row=j, column=max_col + i)
+            x.font= font_header
+            x.alignment = alignment
+
+    sheet[5][7].value = 'Сертификат'
+    sheet[5][7].font = font_header
+    sheet[5][7].alignment = alignment
+    sheet.column_dimensions['H'].width = 20
+
+    sheet[5][8].value = 'Тип'
+    sheet[5][8].font = font_header
+    sheet[5][8].alignment = alignment
+
+    sheet[5][9].value = 'Дата начала действия сертификата'
+    sheet[5][9].font = font_header
+    sheet[5][9].alignment = alignment
+
+    sheet[5][10].value = 'Дата окончания действия сертификата'
+    sheet[5][10].font = font_header
+    sheet[5][10].alignment = alignment
+
+    max_col = sheet.max_column
+    for i in range(len(all_article_from_db)):
+        for j in range(len(all_article_from_db[i])):
+            tmp_list.append(all_article_from_db[i][j])
+    all_article_from_db = tmp_list
+    decode_dict = decode_certificate_types()
+    for row in range(6, sheet.max_row):
+        if sheet[row][1].value in all_article_from_db:
+            certificate_id = get_certificate_id_by_article_query(sheet[row][1].value)
+            sheet[row][max_col-4].value = certificates_dict[certificate_id][0]
+            sheet[row][max_col-4].font = font_data_exsist
+
+            sheet[row][max_col-3].value = decode_dict[certificates_dict[certificate_id][1]]
+            sheet[row][max_col-3].font = font_data_exsist
+
+            sheet[row][max_col - 2].value = certificates_dict[certificate_id][2]
+            sheet[row][max_col - 2].font = font_data_exsist
+
+            sheet[row][max_col - 1].value = certificates_dict[certificate_id][3]
+            sheet[row][max_col - 1].font = font_data_exsist
+
+        else:
+            sheet[row][max_col-4].value = 'Нет данных'
+            sheet[row][max_col-4].font = font_data_not_exsist
+
+            sheet[row][max_col-3].value = 'Нет данных'
+            sheet[row][max_col-3].font = font_data_not_exsist
+
+            sheet[row][max_col - 2].value = 'Нет данных'
+            sheet[row][max_col - 2].font = font_data_not_exsist
+
+            sheet[row][max_col - 1].value = 'Нет данных'
+            sheet[row][max_col - 1].font = font_data_not_exsist
+
+
+    book.save(rf"certificates_list_by_article.xlsx")
+    book.close()
+
+
+
+
+def decode_certificate_types():
+   decode_dict = make_dict(universal_query('certificates_types','*'))
+   reverse_decode_dict = dict((v, k) for k, v in decode_dict.items())
+   return reverse_decode_dict
+
+
 # endregion
 
 
@@ -513,3 +649,4 @@ def make_manufacturer_list_file(file_path,all_article_from_db,reverse_manufactur
 
 
 
+decode_certificate_types()

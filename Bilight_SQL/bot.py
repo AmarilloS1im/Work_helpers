@@ -21,7 +21,8 @@ class FSMAdmin(StatesGroup):
     upload_certificates = State()
     upload_products = State()
     check_dup = State()
-    get_data = State()
+    get_manufacturers_data = State()
+    get_certificates_data = State()
 
 
 # endregion
@@ -118,7 +119,14 @@ async def callback_products_upload(callback: types.CallbackQuery):
 
 @dp.callback_query_handler(text='manufacturer_info')
 async def callback_get_manufacturere_info(callback: types.CallbackQuery):
-    await FSMAdmin.get_data.set()
+    await FSMAdmin.get_manufacrurers_data.set()
+    await callback.message.answer(
+        f"Введите артикул либо, если артикулов много загрузите файл для выгрузки данных в эксель\n"
+        f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
+
+@dp.callback_query_handler(text='cert_info')
+async def callback_get_cert_info(callback: types.CallbackQuery):
+    await FSMAdmin.get_certificates_data.set()
     await callback.message.answer(
         f"Введите артикул либо, если артикулов много загрузите файл для выгрузки данных в эксель\n"
         f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
@@ -362,9 +370,9 @@ async def callback_no_duplicate(callback: types.CallbackQuery, state=FSMContext)
 
 
 # region back button
-@dp.callback_query_handler(text='back', state=[FSMAdmin.upload_new_data, FSMAdmin.get_data,
-                                               FSMAdmin.upload_certificates, FSMAdmin.upload_products,
-                                               FSMAdmin.check_dup, None])
+@dp.callback_query_handler(text='back', state=[FSMAdmin.upload_new_data, FSMAdmin.get_certificates_data,
+                                               FSMAdmin.get_manufacturers_data,FSMAdmin.upload_certificates,
+                                               FSMAdmin.upload_products,FSMAdmin.check_dup, None])
 async def callback_back_button(callback: types.CallbackQuery, state: FSMContext):
     await state.finish()
     user_full_name = callback.message.from_user.full_name
@@ -374,9 +382,9 @@ async def callback_back_button(callback: types.CallbackQuery, state: FSMContext)
 # endregion
 
 
-@dp.message_handler(content_types=types.ContentType.ANY, state=FSMAdmin.get_data)
+@dp.message_handler(content_types=types.ContentType.ANY, state=FSMAdmin.get_manufacturers_data)
 async def get_manufacturer_by_article(message: types.Message, state: FSMContext):
-    await FSMAdmin.get_data.set()
+    await FSMAdmin.get_manufacturers_data.set()
     manufacturers_dict = make_dict(universal_query('manufacturers', '*'))
     reverse_manufacturer_dict = dict((v, k) for k, v in manufacturers_dict.items())
     article = message.text
@@ -412,6 +420,56 @@ async def get_manufacturer_by_article(message: types.Message, state: FSMContext)
                 connect.close()
             if manufacturer_name in reverse_manufacturer_dict.keys():
                 await message.reply(f"{reverse_manufacturer_dict[manufacturer_name]}")
+                await message.reply(
+                    f"Введите следующий артикул, либо, если артикулов много загрузите"
+                    f" файл для выгрузки данных в эксель\n"
+                    f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
+
+        else:
+            await message.reply(f"Данный артикул в базе данных не найден, либо артикул введен не корректно\n"
+                                f"Проверьте правильно ли написан артикул и повторите поппытку\n"
+                                f"либо, если артикулов много загрузите файл для выгрузки данных в эксель\n"
+                                f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
+
+
+
+@dp.message_handler(content_types=types.ContentType.ANY, state=FSMAdmin.get_certificates_data)
+async def get_certificates_by_article(message: types.Message, state: FSMContext):
+    await FSMAdmin.get_certificates_data.set()
+    article = message.text
+    all_article_from_db = get_all_article_from_db()
+    certificates_dict = make_sertificate_dict(universal_query('certificates','*'))
+    if message.content_type == 'document':
+        file_name = message.document.file_name
+        make_certificate_list_file(file_name,all_article_from_db,certificates_dict)
+        certificates_list_by_articles = open(rf"certificates_list_by_article.xlsx", 'rb')
+        await message.reply_document(certificates_list_by_articles)
+        await message.reply('Документ с сертификатами готов к скачиванию', reply_markup=markup_back)
+    elif message.content_type == 'text':
+        match = None
+        for i in range(len(all_article_from_db)):
+            for j in range(len(all_article_from_db[i])):
+                if str(all_article_from_db[i][j]).upper() == str(article).upper():
+                    match = all_article_from_db[i][j]
+                else:
+                    pass
+        if match is not None:
+            try:
+                connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
+                                           password=os.getenv('password'), host=os.getenv('host'))
+                connect.autocommit = True
+                cursor = connect.cursor()
+                cursor.execute(
+                    f"SELECT certificate_id FROM bilight_products "
+                    f"WHERE product_id = '{match}' or order_code = '{match}'")
+                certificate_id = cursor.fetchone()[0]
+            except Exception as _ex:
+                print(f"[INFO] ERROR while working with data base  {_ex}")
+            finally:
+                cursor.close()
+                connect.close()
+            if certificate_id in certificates_dict.keys():
+                await message.reply(f"{certificates_dict[certificate_id][0]}")
                 await message.reply(
                     f"Введите следующий артикул, либо, если артикулов много загрузите"
                     f" файл для выгрузки данных в эксель\n"
