@@ -1,3 +1,4 @@
+# region IMPORT
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
@@ -7,12 +8,20 @@ import emoji
 from Refactor import *
 
 load_dotenv(find_dotenv())
+# endregion
+
+# region INITIALIZE BOT
 
 bot = Bot(token=os.getenv('API_TOKEN'))
 
 storage = MemoryStorage()
 
 dp = Dispatcher(bot, storage=storage)
+
+
+
+
+# endregion
 
 
 # region FSMAdmin
@@ -29,7 +38,8 @@ class FSMAdmin(StatesGroup):
 # endregion
 
 
-# region buttons
+# region BUTTONS
+
 
 # region BACK
 button_back = types.InlineKeyboardButton('НАЗАД', callback_data='back')
@@ -69,16 +79,14 @@ duplicate_cert_button_no = types.InlineKeyboardButton('Нет', callback_data='c
 markup_cert_duplicate_question = types.InlineKeyboardMarkup(row_width=2)
 markup_cert_duplicate_question.add(duplicate_cert_button_yes, duplicate_cert_button_no, button_back)
 
-get_tnvd_code_button = types.InlineKeyboardButton("Получить коды ТНВЭД",callback_data='tnvd_code_upload')
+get_tnvd_code_button = types.InlineKeyboardButton("Получить коды ТНВЭД", callback_data='tnvd_code_upload')
 
 get_data_by_supplier_button = types.InlineKeyboardButton('Получить информацию о производителе',
                                                          callback_data='manufacturer_info')
 get_data_by_cert_button = types.InlineKeyboardButton('Получить информацию о сертификатах', callback_data='cert_info')
 
 markup_get_data = types.InlineKeyboardMarkup(row_width=1)
-markup_get_data.add(get_data_by_supplier_button, get_data_by_cert_button,get_tnvd_code_button, button_back)
-
-
+markup_get_data.add(get_data_by_supplier_button, get_data_by_cert_button, get_tnvd_code_button, button_back)
 
 
 # endregion
@@ -86,7 +94,8 @@ markup_get_data.add(get_data_by_supplier_button, get_data_by_cert_button,get_tnv
 # endregion
 
 
-# region start screen
+# region START SCREEN
+
 @dp.message_handler(commands=['start'])
 async def send_welcome(message: types.Message):
     print('bot  on line')
@@ -97,7 +106,8 @@ async def send_welcome(message: types.Message):
 # endregion
 
 
-# region callback handlers
+# region CALLBACK HANDLERS
+
 @dp.callback_query_handler(text='upload_data')
 async def callback_upload(callback: types.CallbackQuery):
     await callback.message.answer(f"ВНИМАНИЕ! СНАЧАЛА ЗАГРУЗИТЕ СЕРТИФИКАТЫ!\nЕСЛИ СЕРТИФИКАТЫ УЖЕ ЗАГРУЖЕННЫ,"
@@ -124,7 +134,7 @@ async def callback_products_upload(callback: types.CallbackQuery):
 
 
 @dp.callback_query_handler(text='manufacturer_info')
-async def callback_get_manufactureres_info(callback: types.CallbackQuery):
+async def callback_get_manufacturers_info(callback: types.CallbackQuery):
     await FSMAdmin.get_manufacturers_data.set()
     await callback.message.answer(
         f"Введите артикул либо, если артикулов много загрузите файл для выгрузки данных в эксель\n"
@@ -138,6 +148,7 @@ async def callback_get_cert_info(callback: types.CallbackQuery):
         f"Введите артикул либо, если артикулов много загрузите файл для выгрузки данных в эксель\n"
         f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
 
+
 @dp.callback_query_handler(text='tnvd_code_upload')
 async def callback_get_tnved_info(callback: types.CallbackQuery):
     await FSMAdmin.get_tnved_data.set()
@@ -146,8 +157,23 @@ async def callback_get_tnved_info(callback: types.CallbackQuery):
         f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
 
 
+# region back button
+@dp.callback_query_handler(text='back', state=[FSMAdmin.upload_new_data, FSMAdmin.get_certificates_data,
+                                               FSMAdmin.get_manufacturers_data, FSMAdmin.upload_certificates,
+                                               FSMAdmin.upload_products, FSMAdmin.get_tnved_data, FSMAdmin.check_dup,
+                                               None])
+async def callback_back_button(callback: types.CallbackQuery, state: FSMContext):
+    await state.finish()
+    user_full_name = callback.message.from_user.full_name
+    await callback.message.reply(f"Привет {user_full_name}\nЯ Bilight_Bot\n", reply_markup=markup_start_screen)
+
+
 # endregion
 
+# endregion
+
+
+# region MAIN BOT ACTIONS
 
 @dp.message_handler(content_types=types.ContentType.ANY, state=FSMAdmin.upload_certificates)
 async def load_certificates_to_postgresql(message: types.Message, state: FSMContext):
@@ -156,8 +182,8 @@ async def load_certificates_to_postgresql(message: types.Message, state: FSMCont
         await message.answer('Загружать файлы можно только в формате .xlsx',
                              reply_markup=markup_back)
     else:
-        file_extantion = '.' + message.document.file_name.split('.')[-1]
-        if file_extantion != '.xlsx' and file_extantion != '.xls':
+        file_extension = '.' + message.document.file_name.split('.')[-1]
+        if file_extension != '.xlsx' and file_extension != '.xls':
             await FSMAdmin.upload_certificates.set()
             await message.answer('Документ должен быть в формате .xls или .xlsx', reply_markup=markup_back)
         else:
@@ -177,7 +203,7 @@ async def load_certificates_to_postgresql(message: types.Message, state: FSMCont
 
             else:
                 add_certificates(unique_data)
-                await message.reply(f"Cертификаты закгружены",
+                await message.reply(f"Cертификаты загружены",
                                     reply_markup=markup_back)
                 await state.finish()
 
@@ -189,7 +215,7 @@ async def callback_yes_cert(callback: types.CallbackQuery, state=FSMContext):
         duplicate_data = data['duplicate_data']
     add_certificates(unique_data)
     add_cert_duplicate_user_data(duplicate_data)
-    await callback.message.reply(f"Уникальные сертификаты закгружены, дубликаты сертификатов в базе обновлены",
+    await callback.message.reply(f"Уникальные сертификаты загружены, дубликаты сертификатов в базе обновлены",
                                  reply_markup=markup_back)
     await state.finish()
 
@@ -210,15 +236,15 @@ async def load_products_to_postgresql(message: types.Message, state: FSMContext)
         await message.answer('Загружать файлы можно только в формате .xlsx',
                              reply_markup=markup_back)
     else:
-        file_extantion = '.' + message.document.file_name.split('.')[-1]
-        if file_extantion != '.xlsx' and file_extantion != '.xls':
+        file_extension = '.' + message.document.file_name.split('.')[-1]
+        if file_extension != '.xlsx' and file_extension != '.xls':
             await FSMAdmin.upload_products.set()
             await message.answer('Документ должен быть в формате .xls или .xlsx', reply_markup=markup_back)
         else:
             doc = message.document.file_name
             data_from_user = get_product_info_from_user(doc)
             manufacturers_dict = make_dict(universal_query('manufacturers', '*'))
-            approved_manufacterers_data = approved_manufactureres_data_list(data_from_user, manufacturers_dict)
+            approved_manufacturers_data = approved_manufacturers_data_list(data_from_user, manufacturers_dict)
             manufacturers_data_to_check = manufacturers_to_check_data_list(data_from_user)
             unique_data = find_unique_data(universal_query('bilight_products', '*'), data_from_user)
             duplicate_data = find_duplicate_data(universal_query('bilight_products', '*'), doc)
@@ -229,7 +255,7 @@ async def load_products_to_postgresql(message: types.Message, state: FSMContext)
                 data['doc'] = doc
                 data['data_from_user'] = data_from_user
                 data['manufacturers_dict'] = manufacturers_dict
-                data['approved_manufacterers_data'] = approved_manufacterers_data
+                data['approved_manufacturers_data'] = approved_manufacturers_data
                 data['manufacturers_data_to_check'] = manufacturers_data_to_check
                 data['unique_data'] = unique_data
                 data['duplicate_data'] = duplicate_data
@@ -238,11 +264,11 @@ async def load_products_to_postgresql(message: types.Message, state: FSMContext)
                 data['yes_without_make_pos_change_file'] = yes_without_make_pos_change_file
             if possible_change:
                 await FSMAdmin.upload_products.set()
-                await message.reply(f"В вашем файле присуствуют поставщики которых"
-                                    f" нет в списке поставщиков в базе даных\n"
+                await message.reply(f"В вашем файле присутствуют поставщики которых"
+                                    f" нет в списке поставщиков в базе данных\n"
                                     f"Если хотите проверить данные, нажмите 'ДА' и программа"
                                     f" отправит вам файл с возможными заменами, артикулы с корректными "
-                                    f"поставщиками будут згружены\n"
+                                    f"поставщиками будут загружены\n"
                                     f"если вы уверены в своем выборе нажмите 'НЕТ' и программа добавит в"
                                     f"таблицу новых поставщиков", reply_markup=markup_question)
 
@@ -268,7 +294,7 @@ async def load_products_to_postgresql(message: types.Message, state: FSMContext)
 async def callback_yes_prod(callback: types.CallbackQuery, state=FSMContext):
     async with state.proxy() as data:
         doc = data['doc']
-        approved_manufacterers_data = data['approved_manufacterers_data']
+        approved_manufacturers_data = data['approved_manufacturers_data']
         duplicate_data = data['duplicate_data']
         possible_change = data['possible_change']
     if duplicate_data:
@@ -282,12 +308,12 @@ async def callback_yes_prod(callback: types.CallbackQuery, state=FSMContext):
                                      f" по следующим ID {duplicate_data}."
                                      f" Заменить данные?", reply_markup=markup_duplicate_question)
     else:
-        get_replace_file(doc, possible_change)
-        converted_manufacturers_data = convert_manufacturers_to_digit(approved_manufacterers_data)
+        make_replace_file(doc, possible_change)
+        converted_manufacturers_data = convert_manufacturers_to_digit(approved_manufacturers_data)
         add_products(converted_manufacturers_data)
 
-        reply_possibel_changes = open(r"possible_changes.xlsx", 'rb')
-        await callback.message.reply_document(reply_possibel_changes)
+        reply_possible_changes = open(r"possible_changes.xlsx", 'rb')
+        await callback.message.reply_document(reply_possible_changes)
         await callback.message.reply(
             f"Артикулы с корректными поставщиками  загружены, "
             f"предполагаемые замены поставщиков в подготовленном файле", reply_markup=markup_back)
@@ -332,11 +358,11 @@ async def callback_yes_duplicate(callback: types.CallbackQuery, state=FSMContext
         unique_data = data['unique_data']
         yes_without_make_pos_change_file = data['yes_without_make_pos_change_file']
     if yes:
-        get_replace_file(doc, possible_change)
-        reply_possibel_changes = open(r"possible_changes.xlsx", 'rb')
+        make_replace_file(doc, possible_change)
+        reply_possible_changes = open(r"possible_changes.xlsx", 'rb')
         converted_manufacturers_data = convert_manufacturers_to_digit(duplicate_data)
         add_duplicate_user_data(converted_manufacturers_data)
-        await callback.message.reply_document(reply_possibel_changes)
+        await callback.message.reply_document(reply_possible_changes)
         await callback.message.reply(
             f"Артикулы с корректными поставщиками  загружены, "
             f"предполагаемые замены поставщиков в подготовленном файле", reply_markup=markup_back)
@@ -366,12 +392,12 @@ async def callback_no_duplicate(callback: types.CallbackQuery, state=FSMContext)
         add_permition = data['add_permition']
         manufacturers_dict = data['manufacturers_dict']
         data_from_user = data['data_from_user']
-    if  add_permition:
+    if add_permition:
         add_new_manufacturers(manufacturers_dict, data_from_user)
         converted_manufacturers_data = convert_manufacturers_to_digit(unique_data)
         add_unique_user_data(converted_manufacturers_data)
         await callback.message.reply(
-            f"Работа завершена, дубликаты данныех пользователя в базе остались без изменений, уникальные артикулы "
+            f"Работа завершена, дубликаты данных пользователя в базе остались без изменений, уникальные артикулы "
             f"добавлены, новые поставщики добавлены",
             reply_markup=markup_back)
         await state.finish()
@@ -379,23 +405,10 @@ async def callback_no_duplicate(callback: types.CallbackQuery, state=FSMContext)
         converted_manufacturers_data = convert_manufacturers_to_digit(unique_data)
         add_unique_user_data(converted_manufacturers_data)
         await callback.message.reply(
-            f"Работа завершена, дубликаты данныех пользователя в базе остались без изменений, уникальные артикулы "
+            f"Работа завершена, дубликаты данных пользователя в базе остались без изменений, уникальные артикулы "
             f"добавлены",
             reply_markup=markup_back)
         await state.finish()
-
-
-# region back button
-@dp.callback_query_handler(text='back', state=[FSMAdmin.upload_new_data, FSMAdmin.get_certificates_data,
-                                               FSMAdmin.get_manufacturers_data, FSMAdmin.upload_certificates,
-                                               FSMAdmin.upload_products,FSMAdmin.get_tnved_data, FSMAdmin.check_dup, None])
-async def callback_back_button(callback: types.CallbackQuery, state: FSMContext):
-    await state.finish()
-    user_full_name = callback.message.from_user.full_name
-    await callback.message.reply(f"Привет {user_full_name}\nЯ Bilight_Bot\n", reply_markup=markup_start_screen)
-
-
-# endregion
 
 
 @dp.message_handler(content_types=types.ContentType.ANY, state=FSMAdmin.get_manufacturers_data)
@@ -420,7 +433,7 @@ async def get_manufacturer_by_article(message: types.Message, state: FSMContext)
                 else:
                     pass
         if match is not None:
-            manufacturer_name = get_manufacturer_id_by_article_query(match)
+            manufacturer_name = get_id_by_article_query(match, 'manufacturer_id')
             if manufacturer_name in reverse_manufacturer_dict.keys():
                 await message.reply(f"{reverse_manufacturer_dict[manufacturer_name]}")
                 await message.reply(
@@ -430,7 +443,7 @@ async def get_manufacturer_by_article(message: types.Message, state: FSMContext)
 
         else:
             await message.reply(f"Данный артикул в базе данных не найден, либо артикул введен не корректно\n"
-                                f"Проверьте правильно ли написан артикул и повторите поппытку\n"
+                                f"Проверьте правильно ли написан артикул и повторите попытку\n"
                                 f"либо, если артикулов много загрузите файл для выгрузки данных в эксель\n"
                                 f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
 
@@ -440,7 +453,7 @@ async def get_certificates_by_article(message: types.Message, state: FSMContext)
     await FSMAdmin.get_certificates_data.set()
     article = message.text
     all_article_from_db = get_all_article_from_db()
-    certificates_dict = make_sertificate_dict(universal_query('certificates', '*'))
+    certificates_dict = make_certificate_dict(universal_query('certificates', '*'))
     if message.content_type == 'document':
         file_name = message.document.file_name
         make_certificate_list_file(file_name, all_article_from_db, certificates_dict)
@@ -456,7 +469,7 @@ async def get_certificates_by_article(message: types.Message, state: FSMContext)
                 else:
                     pass
         if match is not None:
-            certificate_id = get_certificate_id_by_article_query(match)
+            certificate_id = get_id_by_article_query(match, 'certificate_id')
             if certificate_id in certificates_dict.keys():
                 await message.reply(f"{certificates_dict[certificate_id][0]}")
                 await message.reply(
@@ -466,7 +479,7 @@ async def get_certificates_by_article(message: types.Message, state: FSMContext)
 
         else:
             await message.reply(f"Данный артикул в базе данных не найден, либо артикул введен не корректно\n"
-                                f"Проверьте правильно ли написан артикул и повторите поппытку\n"
+                                f"Проверьте правильно ли написан артикул и повторите попытку\n"
                                 f"либо, если артикулов много загрузите файл для выгрузки данных в эксель\n"
                                 f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
 
@@ -479,7 +492,7 @@ async def get_tnved_data_by_article(message: types.Message, state: FSMContext):
     all_article_from_db = get_all_article_from_db()
     if message.content_type == 'document':
         file_name = message.document.file_name
-        make_tnved_list_file(file_name,all_article_from_db,tnved_dict)
+        make_tnved_list_file(file_name, all_article_from_db, tnved_dict)
         tnved_list_by_articles = open(rf"tnved_list_by_article.xlsx", 'rb')
         await message.reply_document(tnved_list_by_articles)
         await message.reply('Документ с поставщиками готов к скачиванию', reply_markup=markup_back)
@@ -492,7 +505,7 @@ async def get_tnved_data_by_article(message: types.Message, state: FSMContext):
                 else:
                     pass
         if match is not None:
-            tnved_code = get_tnved_by_article(match)
+            tnved_code = get_id_by_article_query(match, 'tnved_id')
             if tnved_code in tnved_dict.keys():
                 await message.reply(f"{tnved_code} {tnved_dict[tnved_code]}")
                 await message.reply(
@@ -502,45 +515,14 @@ async def get_tnved_data_by_article(message: types.Message, state: FSMContext):
 
         else:
             await message.reply(f"Данный артикул в базе данных не найден, либо артикул введен не корректно\n"
-                                f"Проверьте правильно ли написан артикул и повторите поппытку\n"
+                                f"Проверьте правильно ли написан артикул и повторите попытку\n"
                                 f"либо, если артикулов много загрузите файл для выгрузки данных в эксель\n"
                                 f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
 
 
-
-# @dp.message_handler(content_types=types.ContentType.ANY, state=FSMAdmin.get_tnved_data)
-# async def get_tnved_by_article(message: types.Message, state: FSMContext):
-#     await FSMAdmin.get_tnved_data.set()
-#     article = message.text
-#     all_article_from_db = get_all_article_from_db()
-#     tnved_dict = make_tnved_dict()
-#     tnved_id = get_tnved_by_article(article)
-#     if message.content_type == 'document':
-#         file_name = message.document.file_name
-#         make_tnved_list_file(file_name,all_article_from_db,tnved_dict)
-#         tnved_list_by_articles = open(rf"tnved_list_by_article.xlsx", 'rb')
-#         await message.reply_document(tnved_list_by_articles)
-#         await message.reply('Документ с сертификатами готов к скачиванию', reply_markup=markup_back)
-#     elif message.content_type == 'text':
-#         match = None
-#         for i in range(len(all_article_from_db)):
-#             for j in range(len(all_article_from_db[i])):
-#                 if str(all_article_from_db[i][j]).upper() == str(article).upper():
-#                     match = all_article_from_db[i][j]
-#                 else:
-#                     pass
-#         if match is not None:
-#             if tnved_id in tnved_dict.keys():
-#                 await message.reply(f"{tnved_id}{tnved_dict[tnved_id]}")
-#                 await message.reply(
-#                     f"Введите следующий артикул, либо, если артикулов много загрузите"
-#                     f" файл для выгрузки данных в эксель\n"
-#                     f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
-#
-#         else:
-#             await message.reply(f"Данный артикул в базе данных не найден, либо артикул введен не корректно\n"
-#                                 f"Проверьте правильно ли написан артикул и повторите поппытку\n"
-#                                 f"либо, если артикулов много загрузите файл для выгрузки данных в эксель\n"
-#                                 f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
+# endregion
 
 executor.start_polling(dp, skip_updates=True)
+
+
+
