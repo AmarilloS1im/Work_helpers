@@ -48,15 +48,15 @@ markup_back.add(button_back)
 # endregion
 
 # region YES/NO DUPLICATES
-duplicate_button_yes = types.InlineKeyboardButton('ДА', callback_data='duplicate_yes')
+duplicate_button_yes = types.InlineKeyboardButton('Заменить', callback_data='duplicate_yes')
 duplicate_button_no = types.InlineKeyboardButton('НЕТ', callback_data='duplicate_no')
 markup_duplicate_question = types.InlineKeyboardMarkup(row_width=2)
 markup_duplicate_question.add(duplicate_button_yes, duplicate_button_no, button_back)
 # endregion
 
 # region YES/NO
-button_yes = types.InlineKeyboardButton('ДА', callback_data='yes')
-button_no = types.InlineKeyboardButton('НЕТ', callback_data='no')
+button_yes = types.InlineKeyboardButton('Проверить', callback_data='yes')
+button_no = types.InlineKeyboardButton('Я уверен', callback_data='no')
 markup_question = types.InlineKeyboardMarkup(row_width=2)
 markup_question.add(button_yes, button_no, button_back)
 # endregion
@@ -74,7 +74,7 @@ upload_products = types.InlineKeyboardButton('Загрузить артикул�
 markup_upload_certificates_products = types.InlineKeyboardMarkup(row_width=1)
 markup_upload_certificates_products.add(upload_certificates, upload_products, button_back)
 
-duplicate_cert_button_yes = types.InlineKeyboardButton('Да', callback_data='cert_duplicate_yes')
+duplicate_cert_button_yes = types.InlineKeyboardButton('Заменить', callback_data='cert_duplicate_yes')
 duplicate_cert_button_no = types.InlineKeyboardButton('Нет', callback_data='cert_duplicate_no')
 markup_cert_duplicate_question = types.InlineKeyboardMarkup(row_width=2)
 markup_cert_duplicate_question.add(duplicate_cert_button_yes, duplicate_cert_button_no, button_back)
@@ -99,8 +99,13 @@ markup_get_data.add(get_data_by_supplier_button, get_data_by_cert_button, get_tn
 @dp.message_handler(commands=['start'])
 async def send_welcome(message: types.Message):
     print('bot  on line')
-    user_full_name = message.from_user.full_name
-    await message.reply(f"Привет {user_full_name}\nЯ Bilight_Bot\n", reply_markup=markup_start_screen)
+    user_full_name = message.from_user.username
+    await message.reply(f"Привет {user_full_name}\nЯ Bilight_Bot\n"
+                        f"Я помогаю найти информацию о сертификатах, производителях, кодах ТНВЭД"
+                        f" по артикулам из базы ТД Билайт.\n"
+                        f"Если хочешь получить данные о произвоидтелях, сертификатах или кодах ТНВЭД"
+                        f" нажми кнопку 'Получть данные из базы' или кнопку 'Загрузить данные',"
+                        f" если хочешь добавить новую информацию в базу.", reply_markup=markup_start_screen)
 
 
 # endregion
@@ -110,7 +115,7 @@ async def send_welcome(message: types.Message):
 
 @dp.callback_query_handler(text='upload_data')
 async def callback_upload(callback: types.CallbackQuery):
-    await callback.message.answer(f"ВНИМАНИЕ! СНАЧАЛА ЗАГРУЗИТЕ СЕРТИФИКАТЫ!\nЕСЛИ СЕРТИФИКАТЫ УЖЕ ЗАГРУЖЕННЫ,"
+    await callback.message.answer(f"ВНИМАНИЕ!\n\nСНАЧАЛА ЗАГРУЗИТЕ СЕРТИФИКАТЫ!\n\nЕСЛИ СЕРТИФИКАТЫ УЖЕ ЗАГРУЖЕНЫ,"
                                   f" МОЖЕТЕ ЗАГРУЖАТЬ АРТИКУЛЫ ", reply_markup=markup_upload_certificates_products)
 
 
@@ -130,14 +135,21 @@ async def callback_products_upload(callback: types.CallbackQuery):
 
 @dp.callback_query_handler(text='get_data')
 async def callback_products_upload(callback: types.CallbackQuery):
-    await callback.message.answer(f"xxx", reply_markup=markup_get_data)
+    await callback.message.answer(f"Нажмите на соотвествующую кнопку, для получения информации о "
+                                  f"сертифмкатах,производетелях или кодах ТНВЭД\n"
+                                  f"Вы можете получить информацию поарткульно, если их не очень много,"
+                                  f" или сразу загрузить файл с интересующими позициями", reply_markup=markup_get_data)
 
 
 @dp.callback_query_handler(text='manufacturer_info')
 async def callback_get_manufacturers_info(callback: types.CallbackQuery):
     await FSMAdmin.get_manufacturers_data.set()
     await callback.message.answer(
-        f"Введите артикул либо, если артикулов много загрузите файл для выгрузки данных в эксель\n"
+        f"Введите артикул, либо, если артикулов много, загрузите файл для выгрузки данных в эксель.\n"
+        f"Расширение файла должно быть .xls или .xlsx\n"
+        f"Воспользуйтесь печатной формой заказа из 1С или загрузите свой файл в правильном формате:\n\n"
+        f"ПЕРВЫЙ АРТИКУЛ В СПИСКЕ ДОЛЖЕН НАХОДИТЬСЯ ВО 2 КОЛОНКЕ И В 6 СТРОКЕ ОСТАЛЬНЫЕ ЯЧЕЙКИ ДОЛЖЫ БЫТЬ ПУСТЫМИ\n\n"
+        f"В качестве артикула можно использовать код для заказа или код 1С\n\n"
         f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
 
 
@@ -145,7 +157,11 @@ async def callback_get_manufacturers_info(callback: types.CallbackQuery):
 async def callback_get_cert_info(callback: types.CallbackQuery):
     await FSMAdmin.get_certificates_data.set()
     await callback.message.answer(
-        f"Введите артикул либо, если артикулов много загрузите файл для выгрузки данных в эксель\n"
+        f"Введите артикул, либо, если артикулов много, загрузите файл для выгрузки данных в эксель.\n"
+        f"Расширение файла должно быть .xls или .xlsx\n"
+        f"Воспользуйтесь печатной формой заказа из 1С или загрузите свой файл в правильном формате:\n\n"
+        f"ПЕРВЫЙ АРТИКУЛ В СПИСКЕ ДОЛЖЕН НАХОДИТЬСЯ ВО 2 КОЛОНКЕ И В 6 СТРОКЕ ОСТАЛЬНЫЕ ЯЧЕЙКИ ДОЛЖЫ БЫТЬ ПУСТЫМИ\n\n"
+        f"В качестве артикула можно использовать код для заказа или код 1С\n\n"
         f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
 
 
@@ -153,7 +169,11 @@ async def callback_get_cert_info(callback: types.CallbackQuery):
 async def callback_get_tnved_info(callback: types.CallbackQuery):
     await FSMAdmin.get_tnved_data.set()
     await callback.message.answer(
-        f"Введите артикул либо, если артикулов много загрузите файл для выгрузки данных в эксель\n"
+        f"Введите артикул, либо, если артикулов много, загрузите файл для выгрузки данных в эксель.\n"
+        f"Расширение файла должно быть .xls или .xlsx\n"
+        f"Воспользуйтесь печатной формой заказа из 1С или загрузите свой файл в правильном формате:\n\n"
+        f"ПЕРВЫЙ АРТИКУЛ В СПИСКЕ ДОЛЖЕН НАХОДИТЬСЯ ВО 2 КОЛОНКЕ И В 6 СТРОКЕ ОСТАЛЬНЫЕ ЯЧЕЙКИ ДОЛЖЫ БЫТЬ ПУСТЫМИ\n\n"
+        f"В качестве артикула можно использовать код для заказа или код 1С\n\n"
         f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
 
 
@@ -164,7 +184,7 @@ async def callback_get_tnved_info(callback: types.CallbackQuery):
                                                None])
 async def callback_back_button(callback: types.CallbackQuery, state: FSMContext):
     await state.finish()
-    user_full_name = callback.message.from_user.full_name
+    user_full_name = callback.from_user.username
     await callback.message.reply(f"Привет {user_full_name}\nЯ Bilight_Bot\n", reply_markup=markup_start_screen)
 
 
@@ -179,7 +199,7 @@ async def callback_back_button(callback: types.CallbackQuery, state: FSMContext)
 async def load_certificates_to_postgresql(message: types.Message, state: FSMContext):
     if message.content_type != 'document':
         await FSMAdmin.upload_certificates.set()
-        await message.answer('Загружать файлы можно только в формате .xlsx',
+        await message.answer('Загружать файлы можно только в формате .xlsx или .xls',
                              reply_markup=markup_back)
     else:
         file_extension = '.' + message.document.file_name.split('.')[-1]
@@ -198,7 +218,7 @@ async def load_certificates_to_postgresql(message: types.Message, state: FSMCont
                 data['duplicate_data'] = duplicate_data
             if duplicate_data:
                 await message.reply(f"В базе данные обнаружены дубликаты данных по следующим ID"
-                                    f" {duplicate_data}. Заменить данные? y/n?",
+                                    f" {duplicate_data}. Заменить данные?",
                                     reply_markup=markup_cert_duplicate_question)
 
             else:
@@ -233,7 +253,7 @@ async def callback_no_cert(callback: types.CallbackQuery, state=FSMContext):
 async def load_products_to_postgresql(message: types.Message, state: FSMContext):
     if message.content_type != 'document':
         await FSMAdmin.upload_products.set()
-        await message.answer('Загружать файлы можно только в формате .xlsx',
+        await message.answer('Загружать файлы можно только в формате .xlsx или .xls',
                              reply_markup=markup_back)
     else:
         file_extension = '.' + message.document.file_name.split('.')[-1]
@@ -264,13 +284,15 @@ async def load_products_to_postgresql(message: types.Message, state: FSMContext)
                 data['yes_without_make_pos_change_file'] = yes_without_make_pos_change_file
             if possible_change:
                 await FSMAdmin.upload_products.set()
-                await message.reply(f"В вашем файле присутствуют поставщики которых"
-                                    f" нет в списке поставщиков в базе данных\n"
-                                    f"Если хотите проверить данные, нажмите 'ДА' и программа"
+                await message.reply(f"В вашем файле присутствуют производители которых"
+                                    f" нет в списке производителей в базе данных.\n\n"
+                                    f"Если хотите проверить корректность указаных вами производителей,"
+                                    f" нажмите 'Проверить' и программа"
                                     f" отправит вам файл с возможными заменами, артикулы с корректными "
-                                    f"поставщиками будут загружены\n"
-                                    f"если вы уверены в своем выборе нажмите 'НЕТ' и программа добавит в"
-                                    f"таблицу новых поставщиков", reply_markup=markup_question)
+                                    f"производителями будут загружены.\n\n"
+                                    f"Если вы уверены, что производители в файле указанны корректно"
+                                    f" нажмите 'Я уверен' и программа добавит в"
+                                    f" базу данных новых производителей", reply_markup=markup_question)
 
             else:
                 if duplicate_data:
@@ -315,8 +337,8 @@ async def callback_yes_prod(callback: types.CallbackQuery, state=FSMContext):
         reply_possible_changes = open(r"possible_changes.xlsx", 'rb')
         await callback.message.reply_document(reply_possible_changes)
         await callback.message.reply(
-            f"Артикулы с корректными поставщиками  загружены, "
-            f"предполагаемые замены поставщиков в подготовленном файле", reply_markup=markup_back)
+            f"Артикулы с корректными производителями  загружены, "
+            f"предполагаемые замены производителей в подготовленном файле", reply_markup=markup_back)
         await state.finish()
 
 
@@ -340,7 +362,7 @@ async def callback_no_prod(callback: types.CallbackQuery, state=FSMContext):
         add_new_manufacturers(manufacturers_dict, data_from_user)
         converted_manufacturers_data = convert_manufacturers_to_digit(unique_data)
         add_products(converted_manufacturers_data)
-        await callback.message.reply(f"Артикулы и новые поставщики  успешно добавлены в базу данных",
+        await callback.message.reply(f"Артикулы и новые производители  успешно добавлены в базу данных",
                                      reply_markup=markup_back)
         await state.finish()
 
@@ -364,8 +386,8 @@ async def callback_yes_duplicate(callback: types.CallbackQuery, state=FSMContext
         add_duplicate_user_data(converted_manufacturers_data)
         await callback.message.reply_document(reply_possible_changes)
         await callback.message.reply(
-            f"Артикулы с корректными поставщиками  загружены, "
-            f"предполагаемые замены поставщиков в подготовленном файле", reply_markup=markup_back)
+            f"Артикулы с корректными производителями  загружены, "
+            f"предполагаемые замены производителей в подготовленном файле", reply_markup=markup_back)
         await state.finish()
     elif yes_without_make_pos_change_file:
         converted_manufacturers_data = convert_manufacturers_to_digit(duplicate_data)
@@ -380,7 +402,7 @@ async def callback_yes_duplicate(callback: types.CallbackQuery, state=FSMContext
         converted_manufacturers_data = convert_manufacturers_to_digit(unique_data)
         add_unique_user_data(converted_manufacturers_data)
 
-        await callback.message.reply(f"Артикулы и новые поставщики  успешно добавлены в базу данных",
+        await callback.message.reply(f"Артикулы и новые производители  успешно добавлены в базу данных",
                                      reply_markup=markup_back)
         await state.finish()
 
@@ -398,7 +420,7 @@ async def callback_no_duplicate(callback: types.CallbackQuery, state=FSMContext)
         add_unique_user_data(converted_manufacturers_data)
         await callback.message.reply(
             f"Работа завершена, дубликаты данных пользователя в базе остались без изменений, уникальные артикулы "
-            f"добавлены, новые поставщики добавлены",
+            f"добавлены, новые производители добавлены",
             reply_markup=markup_back)
         await state.finish()
     else:
@@ -419,11 +441,16 @@ async def get_manufacturer_by_article(message: types.Message, state: FSMContext)
     article = message.text
     all_article_from_db = get_all_article_from_db()
     if message.content_type == 'document':
-        file_name = message.document.file_name
-        make_manufacturer_list_file(file_name, all_article_from_db, reverse_manufacturer_dict)
-        manufacturer_list_by_articles = open(rf"manufacturer_list_by_articles.xlsx", 'rb')
-        await message.reply_document(manufacturer_list_by_articles)
-        await message.reply('Документ с поставщиками готов к скачиванию', reply_markup=markup_back)
+            file_extension = '.' + message.document.file_name.split('.')[-1]
+            if file_extension != '.xlsx' and file_extension != '.xls':
+                await FSMAdmin.get_manufacturers_data.set()
+                await message.answer('Документ должен быть в формате .xls или .xlsx', reply_markup=markup_back)
+            else:
+                file_name = message.document.file_name
+                make_manufacturer_list_file(file_name, all_article_from_db, reverse_manufacturer_dict)
+                manufacturer_list_by_articles = open(rf"manufacturer_list_by_articles.xlsx", 'rb')
+                await message.reply_document(manufacturer_list_by_articles)
+                await message.reply('Документ с производителями готов к скачиванию', reply_markup=markup_back)
     elif message.content_type == 'text':
         match = None
         for i in range(len(all_article_from_db)):
@@ -455,11 +482,16 @@ async def get_certificates_by_article(message: types.Message, state: FSMContext)
     all_article_from_db = get_all_article_from_db()
     certificates_dict = make_certificate_dict(universal_query('certificates', '*'))
     if message.content_type == 'document':
-        file_name = message.document.file_name
-        make_certificate_list_file(file_name, all_article_from_db, certificates_dict)
-        certificates_list_by_articles = open(rf"certificates_list_by_article.xlsx", 'rb')
-        await message.reply_document(certificates_list_by_articles)
-        await message.reply('Документ с сертификатами готов к скачиванию', reply_markup=markup_back)
+        file_extension = '.' + message.document.file_name.split('.')[-1]
+        if file_extension != '.xlsx' and file_extension != '.xls':
+            await FSMAdmin.get_certificates_data.set()
+            await message.answer('Документ должен быть в формате .xls или .xlsx', reply_markup=markup_back)
+        else:
+            file_name = message.document.file_name
+            make_certificate_list_file(file_name, all_article_from_db, certificates_dict)
+            certificates_list_by_articles = open(rf"certificates_list_by_article.xlsx", 'rb')
+            await message.reply_document(certificates_list_by_articles)
+            await message.reply('Документ с сертификатами готов к скачиванию', reply_markup=markup_back)
     elif message.content_type == 'text':
         match = None
         for i in range(len(all_article_from_db)):
@@ -491,11 +523,16 @@ async def get_tnved_data_by_article(message: types.Message, state: FSMContext):
     article = message.text
     all_article_from_db = get_all_article_from_db()
     if message.content_type == 'document':
-        file_name = message.document.file_name
-        make_tnved_list_file(file_name, all_article_from_db, tnved_dict)
-        tnved_list_by_articles = open(rf"tnved_list_by_article.xlsx", 'rb')
-        await message.reply_document(tnved_list_by_articles)
-        await message.reply('Документ с поставщиками готов к скачиванию', reply_markup=markup_back)
+        file_extension = '.' + message.document.file_name.split('.')[-1]
+        if file_extension != '.xlsx' and file_extension != '.xls':
+            await FSMAdmin.get_tnved_data.set()
+            await message.answer('Документ должен быть в формате .xls или .xlsx', reply_markup=markup_back)
+        else:
+            file_name = message.document.file_name
+            make_tnved_list_file(file_name, all_article_from_db, tnved_dict)
+            tnved_list_by_articles = open(rf"tnved_list_by_article.xlsx", 'rb')
+            await message.reply_document(tnved_list_by_articles)
+            await message.reply('Документ с поставщиками готов к скачиванию', reply_markup=markup_back)
     elif message.content_type == 'text':
         match = None
         for i in range(len(all_article_from_db)):
