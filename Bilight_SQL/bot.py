@@ -33,7 +33,7 @@ class FSMAdmin(StatesGroup):
     get_tnved_data = State()
     get_all_together = State()
     download_templates = State()
-    template_art = State()
+
 
 
 # endregion
@@ -148,14 +148,22 @@ async def callback_templates_download(callback: types.CallbackQuery):
     await callback.message.answer(f"Нажмите на соотвествующие кнопки, чтобы скачать шаблон для"
                                   f" загрузки артикулов или сертификатов", reply_markup=markup_download_templates)
 
-@dp.callback_query_handler(text='download_template_art')
+@dp.callback_query_handler(text='download_template_art',state=[FSMAdmin.download_templates])
 async def callback_download_templates_art(callback: types.CallbackQuery, state=FSMContext):
-    await state.finish()
+    await FSMAdmin.download_templates.set()
     reply_template_art = open(r"products_upload_template.xlsx", 'rb')
     await callback.message.reply_document(reply_template_art)
 
     await callback.message.answer(f"Шаблон готов к скачиванию", reply_markup=markup_back)
 
+
+@dp.callback_query_handler(text='download_template_cert',state=[FSMAdmin.download_templates])
+async def callback_download_templates_cert(callback: types.CallbackQuery, state=FSMContext):
+    await FSMAdmin.download_templates.set()
+    reply_template_cert = open(r"cert_upload_template.xlsx", 'rb')
+    await callback.message.reply_document(reply_template_cert)
+
+    await callback.message.answer(f"Шаблон готов к скачиванию", reply_markup=markup_back)
 
 @dp.callback_query_handler(text='get_data')
 async def callback_products_upload(callback: types.CallbackQuery):
