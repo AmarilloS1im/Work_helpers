@@ -19,8 +19,6 @@ storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
 
 
-
-
 # endregion
 
 
@@ -33,6 +31,9 @@ class FSMAdmin(StatesGroup):
     get_manufacturers_data = State()
     get_certificates_data = State()
     get_tnved_data = State()
+    get_all_together = State()
+    download_templates = State()
+    template_art = State()
 
 
 # endregion
@@ -71,8 +72,14 @@ markup_start_screen.add(upload_button, download_button)
 # region UPLOAD/DOWNLOAD CERTS OR PROD
 upload_certificates = types.InlineKeyboardButton('Загрузить сертификаты в базу', callback_data='certificates_upload')
 upload_products = types.InlineKeyboardButton('Загрузить артикулы в базу', callback_data='products_upload')
+templates_for_upload_button = types.InlineKeyboardButton('Скачать шаблоны для загрузки артикулов или сертификатов',callback_data='templates')
 markup_upload_certificates_products = types.InlineKeyboardMarkup(row_width=1)
-markup_upload_certificates_products.add(upload_certificates, upload_products, button_back)
+markup_upload_certificates_products.add(upload_certificates, upload_products,templates_for_upload_button, button_back)
+
+download_template_articles = types.InlineKeyboardButton('Скачать шаблон для загрузки артикулов', callback_data = 'download_template_art')
+download_template_certificates = types.InlineKeyboardButton('Скачать шаблон для загрузки сертификатов', callback_data = 'download_template_cert')
+markup_download_templates = types.InlineKeyboardMarkup(row_width=1)
+markup_download_templates.add(download_template_articles,download_template_certificates,button_back)
 
 duplicate_cert_button_yes = types.InlineKeyboardButton('Заменить', callback_data='cert_duplicate_yes')
 duplicate_cert_button_no = types.InlineKeyboardButton('Нет', callback_data='cert_duplicate_no')
@@ -85,8 +92,11 @@ get_data_by_supplier_button = types.InlineKeyboardButton('Получить ин�
                                                          callback_data='manufacturer_info')
 get_data_by_cert_button = types.InlineKeyboardButton('Получить информацию о сертификатах', callback_data='cert_info')
 
+get_all_data_button = types.InlineKeyboardButton('ВСЕ ВМЕСТЕ', callback_data='all_together')
+
 markup_get_data = types.InlineKeyboardMarkup(row_width=1)
-markup_get_data.add(get_data_by_supplier_button, get_data_by_cert_button, get_tnvd_code_button, button_back)
+markup_get_data.add(get_data_by_supplier_button, get_data_by_cert_button, get_tnvd_code_button, get_all_data_button,
+                    button_back)
 
 
 # endregion
@@ -132,6 +142,20 @@ async def callback_products_upload(callback: types.CallbackQuery):
     await callback.message.answer(f"ЧТОБЫ ЗАГРУЗИТЕ ДОКУМЕНТ\n"
                                   f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
 
+@dp.callback_query_handler(text='templates')
+async def callback_templates_download(callback: types.CallbackQuery):
+    await FSMAdmin.download_templates.set()
+    await callback.message.answer(f"Нажмите на соотвествующие кнопки, чтобы скачать шаблон для"
+                                  f" загрузки артикулов или сертификатов", reply_markup=markup_download_templates)
+
+@dp.callback_query_handler(text='download_template_art')
+async def callback_download_templates_art(callback: types.CallbackQuery, state=FSMContext):
+    await state.finish()
+    reply_template_art = open(r"products_upload_template.xlsx", 'rb')
+    await callback.message.reply_document(reply_template_art)
+
+    await callback.message.answer(f"Шаблон готов к скачиванию", reply_markup=markup_back)
+
 
 @dp.callback_query_handler(text='get_data')
 async def callback_products_upload(callback: types.CallbackQuery):
@@ -168,6 +192,18 @@ async def callback_get_cert_info(callback: types.CallbackQuery):
 @dp.callback_query_handler(text='tnvd_code_upload')
 async def callback_get_tnved_info(callback: types.CallbackQuery):
     await FSMAdmin.get_tnved_data.set()
+    await callback.message.answer(
+        f"Введите артикул, либо, если артикулов много, загрузите файл для выгрузки данных в эксель.\n"
+        f"Расширение файла должно быть .xls или .xlsx\n"
+        f"Воспользуйтесь печатной формой заказа из 1С или загрузите свой файл в правильном формате:\n\n"
+        f"ПЕРВЫЙ АРТИКУЛ В СПИСКЕ ДОЛЖЕН НАХОДИТЬСЯ ВО 2 КОЛОНКЕ И В 6 СТРОКЕ ОСТАЛЬНЫЕ ЯЧЕЙКИ ДОЛЖЫ БЫТЬ ПУСТЫМИ\n\n"
+        f"В качестве артикула можно использовать код для заказа или код 1С\n\n"
+        f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
+
+
+@dp.callback_query_handler(text='all_together')
+async def callback_get_tnved_info(callback: types.CallbackQuery):
+    await FSMAdmin.get_all_together.set()
     await callback.message.answer(
         f"Введите артикул, либо, если артикулов много, загрузите файл для выгрузки данных в эксель.\n"
         f"Расширение файла должно быть .xls или .xlsx\n"
@@ -436,38 +472,35 @@ async def callback_no_duplicate(callback: types.CallbackQuery, state=FSMContext)
 @dp.message_handler(content_types=types.ContentType.ANY, state=FSMAdmin.get_manufacturers_data)
 async def get_manufacturer_by_article(message: types.Message, state: FSMContext):
     await FSMAdmin.get_manufacturers_data.set()
-    manufacturers_dict = make_dict(universal_query('manufacturers', '*'))
-    reverse_manufacturer_dict = dict((v, k) for k, v in manufacturers_dict.items())
     article = message.text
-    all_article_from_db = get_all_article_from_db()
+    all_article_from_db = make_global_info_table()
     if message.content_type == 'document':
-            file_extension = '.' + message.document.file_name.split('.')[-1]
-            if file_extension != '.xlsx' and file_extension != '.xls':
-                await FSMAdmin.get_manufacturers_data.set()
-                await message.answer('Документ должен быть в формате .xls или .xlsx', reply_markup=markup_back)
-            else:
-                file_name = message.document.file_name
-                make_manufacturer_list_file(file_name, all_article_from_db, reverse_manufacturer_dict)
-                manufacturer_list_by_articles = open(rf"manufacturer_list_by_articles.xlsx", 'rb')
-                await message.reply_document(manufacturer_list_by_articles)
-                await message.reply('Документ с производителями готов к скачиванию', reply_markup=markup_back)
+        file_extension = '.' + message.document.file_name.split('.')[-1]
+        if file_extension != '.xlsx' and file_extension != '.xls':
+            await FSMAdmin.get_manufacturers_data.set()
+            await message.answer('Документ должен быть в формате .xls или .xlsx', reply_markup=markup_back)
+        else:
+            file_name = message.document.file_name
+            make_manufacturer_list_file(file_name)
+            manufacturer_list_by_articles = open(rf"manufacturer_list_by_articles.xlsx", 'rb')
+            await message.reply_document(manufacturer_list_by_articles)
+            await message.reply('Документ с производителями готов к скачиванию', reply_markup=markup_back)
     elif message.content_type == 'text':
         match = None
+        all_data = None
         for i in range(len(all_article_from_db)):
             for j in range(len(all_article_from_db[i])):
                 if str(all_article_from_db[i][j]).upper() == str(article).upper():
                     match = all_article_from_db[i][j]
+                    all_data = all_article_from_db[i]
                 else:
                     pass
         if match is not None:
-            manufacturer_name = get_id_by_article_query(match, 'manufacturer_id')
-            if manufacturer_name in reverse_manufacturer_dict.keys():
-                await message.reply(f"{reverse_manufacturer_dict[manufacturer_name]}")
-                await message.reply(
-                    f"Введите следующий артикул, либо, если артикулов много загрузите"
-                    f" файл для выгрузки данных в эксель\n"
-                    f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
-
+            await message.reply(f"{all_data[2]}")
+            await message.reply(
+                f"Введите следующий артикул, либо, если артикулов много загрузите"
+                f" файл для выгрузки данных в эксель\n"
+                f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
         else:
             await message.reply(f"Данный артикул в базе данных не найден, либо артикул введен не корректно\n"
                                 f"Проверьте правильно ли написан артикул и повторите попытку\n"
@@ -479,8 +512,7 @@ async def get_manufacturer_by_article(message: types.Message, state: FSMContext)
 async def get_certificates_by_article(message: types.Message, state: FSMContext):
     await FSMAdmin.get_certificates_data.set()
     article = message.text
-    all_article_from_db = get_all_article_from_db()
-    certificates_dict = make_certificate_dict(universal_query('certificates', '*'))
+    all_article_from_db = make_global_info_table()
     if message.content_type == 'document':
         file_extension = '.' + message.document.file_name.split('.')[-1]
         if file_extension != '.xlsx' and file_extension != '.xls':
@@ -488,27 +520,27 @@ async def get_certificates_by_article(message: types.Message, state: FSMContext)
             await message.answer('Документ должен быть в формате .xls или .xlsx', reply_markup=markup_back)
         else:
             file_name = message.document.file_name
-            make_certificate_list_file(file_name, all_article_from_db, certificates_dict)
+            make_certificate_list_file(file_name)
             certificates_list_by_articles = open(rf"certificates_list_by_article.xlsx", 'rb')
             await message.reply_document(certificates_list_by_articles)
             await message.reply('Документ с сертификатами готов к скачиванию', reply_markup=markup_back)
     elif message.content_type == 'text':
         match = None
+        all_data = None
         for i in range(len(all_article_from_db)):
             for j in range(len(all_article_from_db[i])):
                 if str(all_article_from_db[i][j]).upper() == str(article).upper():
                     match = all_article_from_db[i][j]
+                    all_data = all_article_from_db[i]
                 else:
                     pass
         if match is not None:
-            certificate_id = get_id_by_article_query(match, 'certificate_id')
-            if certificate_id in certificates_dict.keys():
-                await message.reply(f"{certificates_dict[certificate_id][0]}")
-                await message.reply(
-                    f"Введите следующий артикул, либо, если артикулов много загрузите"
-                    f" файл для выгрузки данных в эксель\n"
-                    f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
-
+            await message.reply(f"Сертификат номер - {all_data[3]} ТИП:  {all_data[4]} ДАТА НАЧАЛА ДЕЙСТВИЯ:"
+                                f" {all_data[5]} ДАТА ОКОНЧАНИЯ: {all_data[6]}")
+            await message.reply(
+                f"Введите следующий артикул, либо, если артикулов много загрузите"
+                f" файл для выгрузки данных в эксель\n"
+                f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
         else:
             await message.reply(f"Данный артикул в базе данных не найден, либо артикул введен не корректно\n"
                                 f"Проверьте правильно ли написан артикул и повторите попытку\n"
@@ -519,9 +551,8 @@ async def get_certificates_by_article(message: types.Message, state: FSMContext)
 @dp.message_handler(content_types=types.ContentType.ANY, state=FSMAdmin.get_tnved_data)
 async def get_tnved_data_by_article(message: types.Message, state: FSMContext):
     await FSMAdmin.get_tnved_data.set()
-    tnved_dict = make_tnved_dict()
     article = message.text
-    all_article_from_db = get_all_article_from_db()
+    all_article_from_db = make_global_info_table()
     if message.content_type == 'document':
         file_extension = '.' + message.document.file_name.split('.')[-1]
         if file_extension != '.xlsx' and file_extension != '.xls':
@@ -529,27 +560,65 @@ async def get_tnved_data_by_article(message: types.Message, state: FSMContext):
             await message.answer('Документ должен быть в формате .xls или .xlsx', reply_markup=markup_back)
         else:
             file_name = message.document.file_name
-            make_tnved_list_file(file_name, all_article_from_db, tnved_dict)
+            make_tnved_list_file(file_name)
             tnved_list_by_articles = open(rf"tnved_list_by_article.xlsx", 'rb')
             await message.reply_document(tnved_list_by_articles)
-            await message.reply('Документ с поставщиками готов к скачиванию', reply_markup=markup_back)
+            await message.reply('Документ с кодами ТНВЭД готов к скачиванию', reply_markup=markup_back)
     elif message.content_type == 'text':
         match = None
+        all_data = None
         for i in range(len(all_article_from_db)):
             for j in range(len(all_article_from_db[i])):
                 if str(all_article_from_db[i][j]).upper() == str(article).upper():
                     match = all_article_from_db[i][j]
+                    all_data = all_article_from_db[i]
                 else:
                     pass
         if match is not None:
-            tnved_code = get_id_by_article_query(match, 'tnved_id')
-            if tnved_code in tnved_dict.keys():
-                await message.reply(f"{tnved_code} {tnved_dict[tnved_code]}")
-                await message.reply(
-                    f"Введите следующий артикул, либо, если артикулов много загрузите"
-                    f" файл для выгрузки данных в эксель\n"
-                    f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
+            await message.reply(f"Код ТНВЭД - {all_data[7]} ОПИСАНИЕ:  {all_data[8]}")
+            await message.reply(
+                f"Введите следующий артикул, либо, если артикулов много загрузите"
+                f" файл для выгрузки данных в эксель\n"
+                f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
+        else:
+            await message.reply(f"Данный артикул в базе данных не найден, либо артикул введен не корректно\n"
+                                f"Проверьте правильно ли написан артикул и повторите попытку\n"
+                                f"либо, если артикулов много загрузите файл для выгрузки данных в эксель\n"
+                                f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
 
+
+@dp.message_handler(content_types=types.ContentType.ANY, state=FSMAdmin.get_all_together)
+async def get_all_together_data_by_article(message: types.Message, state: FSMContext):
+    await FSMAdmin.get_all_together.set()
+    article = message.text
+    all_article_from_db = make_global_info_table()
+    if message.content_type == 'document':
+        file_extension = '.' + message.document.file_name.split('.')[-1]
+        if file_extension != '.xlsx' and file_extension != '.xls':
+            await FSMAdmin.get_tnved_data.set()
+            await message.answer('Документ должен быть в формате .xls или .xlsx', reply_markup=markup_back)
+        else:
+            file_name = message.document.file_name
+            make_total_list_file(file_name)
+            tnved_list_by_articles = open(rf"total_list_by_article.xlsx", 'rb')
+            await message.reply_document(tnved_list_by_articles)
+            await message.reply('Документ с данными готов к скачиванию', reply_markup=markup_back)
+    elif message.content_type == 'text':
+        match = None
+        all_data = None
+        for i in range(len(all_article_from_db)):
+            for j in range(len(all_article_from_db[i])):
+                if str(all_article_from_db[i][j]).upper() == str(article).upper():
+                    match = all_article_from_db[i][j]
+                    all_data = all_article_from_db[i]
+                else:
+                    pass
+        if match is not None:
+            await message.reply(f"{all_data}")
+            await message.reply(
+                f"Введите следующий артикул, либо, если артикулов много загрузите"
+                f" файл для выгрузки данных в эксель\n"
+                f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
         else:
             await message.reply(f"Данный артикул в базе данных не найден, либо артикул введен не корректно\n"
                                 f"Проверьте правильно ли написан артикул и повторите попытку\n"
@@ -560,6 +629,3 @@ async def get_tnved_data_by_article(message: types.Message, state: FSMContext):
 # endregion
 
 executor.start_polling(dp, skip_updates=True)
-
-
-

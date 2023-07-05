@@ -102,7 +102,7 @@ def get_all_article_from_db():
         print("Postgre SQL Connection closed")
 
 
-def get_id_by_article_query(article,needed_id_name):
+def get_id_by_article_query(article, needed_id_name):
     try:
         connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
                                    password=os.getenv('password'), host=os.getenv('host'))
@@ -457,8 +457,8 @@ def make_replace_file(file_path, possible_change):
     rows_to_del_list.sort()
     offset = 0
     for x in rows_to_del_list:
-        sheet.delete_rows(idx=x-offset)
-        offset +=1
+        sheet.delete_rows(idx=x - offset)
+        offset += 1
     for row in range(2, sheet.max_row + 2):
         if sheet[row][3].value in possible_change.keys():
             sheet[row][3].font = font_data_to_check
@@ -471,7 +471,7 @@ def make_replace_file(file_path, possible_change):
     book.close()
 
 
-def make_manufacturer_list_file(file_path, all_article_from_db, reverse_manufacturer_dict):
+def make_manufacturer_list_file(file_path):
     shutil.copy(rf"{file_path}", rf"manufacturer_list_by_articles.xlsx")
     book = openpyxl.open(rf"manufacturer_list_by_articles.xlsx", read_only=False, data_only=True)
     sheet = book.active
@@ -507,36 +507,30 @@ def make_manufacturer_list_file(file_path, all_article_from_db, reverse_manufact
     )
     alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
     max_col = sheet.max_column
-    tmp_list = []
     sheet.cell(row=5, column=max_col + 1)
     sheet[5][max_col].value = 'Производитель'
     sheet[5][max_col].font = font_header
     sheet[5][max_col].alignment = alignment
     sheet.column_dimensions['H'].width = 20
 
-    for i in range(len(all_article_from_db)):
-        for j in range(len(all_article_from_db[i])):
-            tmp_list.append(all_article_from_db[i][j])
-    all_article_from_db = tmp_list
+    left_join_table_info = make_global_info_table()
     for row in range(6, sheet.max_row):
-        if sheet[row][1].value in all_article_from_db:
-            manufacturer_id = get_id_by_article_query(sheet[row][1].value,'manufacturer_id')
-            sheet.cell(row=row, column=max_col + 1)
-            sheet[row][max_col].value = reverse_manufacturer_dict[manufacturer_id]
-            sheet[row][max_col].font = font_data_exist
-            sheet[row][max_col].alignment = alignment
-
-        else:
-            sheet.cell(row=row, column=max_col + 1)
-            sheet[row][max_col].value = 'Нет данных'
-            sheet[row][max_col].font = font_data_not_exist
-            sheet[row][max_col].alignment = alignment
+        for i in left_join_table_info:
+            if sheet[row][1].value == i[0] or sheet[row][1].value == i[1]:
+                sheet.cell(row=row, column=max_col + 1)
+                sheet[row][max_col].value = i[2]
+                sheet[row][max_col].font = font_data_exist
+                break
+            else:
+                sheet.cell(row=row, column=max_col + 1)
+                sheet[row][max_col].value = 'Нет данных'
+                sheet[row][max_col].font = font_data_not_exist
 
     book.save(rf"manufacturer_list_by_articles.xlsx")
     book.close()
 
 
-def make_certificate_list_file(file_path, all_article_from_db, certificates_dict):
+def make_certificate_list_file(file_path):
     shutil.copy(rf"{file_path}", rf"certificates_list_by_article.xlsx")
     book = openpyxl.open(rf"certificates_list_by_article.xlsx", read_only=False, data_only=True)
     sheet = book.active
@@ -572,7 +566,6 @@ def make_certificate_list_file(file_path, all_article_from_db, certificates_dict
     )
     alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
     max_col = sheet.max_column
-    tmp_list = []
     for i in range(1, 5):
         for j in range(5, sheet.max_row):
             x = sheet.cell(row=j, column=max_col + i)
@@ -597,44 +590,27 @@ def make_certificate_list_file(file_path, all_article_from_db, certificates_dict
     sheet[5][10].alignment = alignment
 
     max_col = sheet.max_column
-    for i in range(len(all_article_from_db)):
-        for j in range(len(all_article_from_db[i])):
-            tmp_list.append(all_article_from_db[i][j])
-    all_article_from_db = tmp_list
-    decode_dict = decode_certificate_types()
+    left_join_table_info = make_global_info_table()
+    print(left_join_table_info)
     for row in range(6, sheet.max_row):
-        if sheet[row][1].value in all_article_from_db:
-            certificate_id = get_id_by_article_query(sheet[row][1].value,'certificate_id')
-            sheet[row][max_col - 4].value = certificates_dict[certificate_id][0]
-            sheet[row][max_col - 4].font = font_data_exist
-
-            sheet[row][max_col - 3].value = decode_dict[certificates_dict[certificate_id][1]]
-            sheet[row][max_col - 3].font = font_data_exist
-
-            sheet[row][max_col - 2].value = certificates_dict[certificate_id][2]
-            sheet[row][max_col - 2].font = font_data_exist
-
-            sheet[row][max_col - 1].value = certificates_dict[certificate_id][3]
-            sheet[row][max_col - 1].font = font_data_exist
-
-        else:
-            sheet[row][max_col - 4].value = 'Нет данных'
-            sheet[row][max_col - 4].font = font_data_not_exist
-
-            sheet[row][max_col - 3].value = 'Нет данных'
-            sheet[row][max_col - 3].font = font_data_not_exist
-
-            sheet[row][max_col - 2].value = 'Нет данных'
-            sheet[row][max_col - 2].font = font_data_not_exist
-
-            sheet[row][max_col - 1].value = 'Нет данных'
-            sheet[row][max_col - 1].font = font_data_not_exist
+        for i in left_join_table_info:
+            if sheet[row][1].value == i[0] or sheet[row][1].value == i[1]:
+                n = 3
+                for x in range(4, 0, -1):
+                    sheet[row][max_col - x].value = i[n]
+                    sheet[row][max_col - x].font = font_data_exist
+                    n += 1
+                break
+            else:
+                for x in range(4, 0, -1):
+                    sheet[row][max_col - x].value = 'Нет данных'
+                    sheet[row][max_col - x].font = font_data_not_exist
 
     book.save(rf"certificates_list_by_article.xlsx")
     book.close()
 
 
-def make_tnved_list_file(file_path, all_article_from_db, tnved_dict):
+def make_tnved_list_file(file_path):
     shutil.copy(rf"{file_path}", rf"tnved_list_by_article.xlsx")
     book = openpyxl.open(rf"tnved_list_by_article.xlsx", read_only=False, data_only=True)
     sheet = book.active
@@ -670,7 +646,6 @@ def make_tnved_list_file(file_path, all_article_from_db, tnved_dict):
     )
     alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
     max_col = sheet.max_column
-    tmp_list = []
     for i in range(1, 5):
         for j in range(5, sheet.max_row):
             x = sheet.cell(row=j, column=max_col + i)
@@ -688,26 +663,21 @@ def make_tnved_list_file(file_path, all_article_from_db, tnved_dict):
     sheet.column_dimensions['I'].width = 150
 
     max_col = sheet.max_column
-    for i in range(len(all_article_from_db)):
-        for j in range(len(all_article_from_db[i])):
-            tmp_list.append(all_article_from_db[i][j])
-    all_article_from_db = tmp_list
+    left_join_table_info = make_global_info_table()
+
     for row in range(6, sheet.max_row):
-        if sheet[row][1].value in all_article_from_db:
-            tnved_id = get_id_by_article_query(sheet[row][1].value,'tnved_id')
-            sheet[row][max_col - 4].value = tnved_id
-            sheet[row][max_col - 4].font = font_data_exist
-
-            sheet[row][max_col - 3].value = tnved_dict[tnved_id]
-            sheet[row][max_col - 3].font = font_data_exist
-
-        else:
-            sheet[row][max_col - 4].value = 'Нет данных'
-            sheet[row][max_col - 4].font = font_data_not_exist
-
-            sheet[row][max_col - 3].value = 'Нет данных'
-            sheet[row][max_col - 3].font = font_data_not_exist
-
+        for i in left_join_table_info:
+            if sheet[row][1].value == i[0] or sheet[row][1].value == i[1]:
+                n = 7
+                for x in range(4, 2, -1):
+                    sheet[row][max_col - x].value = i[n]
+                    sheet[row][max_col - x].font = font_data_exist
+                    n += 1
+                break
+            else:
+                for x in range(4, 2, -1):
+                    sheet[row][max_col - x].value = 'Нет данных'
+                    sheet[row][max_col - x].font = font_data_not_exist
     book.save(rf"tnved_list_by_article.xlsx")
     book.close()
 
@@ -723,10 +693,10 @@ def convert_manufacturers_to_digit(data):
     return data
 
 
-def decode_certificate_types():
-    decode_dict = make_dict(universal_query('certificates_types', '*'))
-    reverse_decode_dict = dict((v, k) for k, v in decode_dict.items())
-    return reverse_decode_dict
+# def decode_certificate_types():
+#     decode_dict = make_dict(universal_query('certificates_types', '*'))
+#     reverse_decode_dict = dict((v, k) for k, v in decode_dict.items())
+#     return reverse_decode_dict
 
 
 def make_global_info_table():
@@ -735,16 +705,15 @@ def make_global_info_table():
                                    password=os.getenv('password'), host=os.getenv('host'))
         connect.autocommit = True
         cursor = connect.cursor()
-        cursor.execute(f"SELECT product_id,order_code, manufacturer_name,certificate_number,certificate_type,start_date,end_date,tnved_id,tnved_description"
-                       f" FROM bilight_products"
-                       f" LEFT JOIN manufacturers USING (manufacturer_id)"
-                       f" LEFT JOIN certificates USING (certificate_id)"
-                       f" LEFT JOIN certificates_types USING (certificate_type_id)"
-                       f" LEFT JOIN tnved USING (tnved_id)")
+        cursor.execute(
+            f"SELECT product_id,order_code, manufacturer_name,certificate_number,"
+            f"certificate_type,start_date,end_date,tnved_id,tnved_description"
+            f" FROM bilight_products"
+            f" LEFT JOIN manufacturers USING (manufacturer_id)"
+            f" LEFT JOIN certificates USING (certificate_id)"
+            f" LEFT JOIN certificates_types USING (certificate_type_id)"
+            f" LEFT JOIN tnved USING (tnved_id)")
         query_data = cursor.fetchmany(9)
-        # print(query_data)
-        for x in query_data:
-            print(x[0])
         return query_data
     except Exception as _ex:
         print(f"[INFO] ERROR while working with data base {_ex}")
@@ -752,7 +721,8 @@ def make_global_info_table():
         cursor.close()
         connect.close()
 
-def make_total_list_file(file_path, all_article_from_db, certificates_dict):
+
+def make_total_list_file(file_path):
     shutil.copy(rf"{file_path}", rf"total_list_by_article.xlsx")
     book = openpyxl.open(rf"total_list_by_article.xlsx", read_only=False, data_only=True)
     sheet = book.active
@@ -788,80 +758,62 @@ def make_total_list_file(file_path, all_article_from_db, certificates_dict):
     )
     alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
     max_col = sheet.max_column
-    tmp_list = []
     for i in range(1, 9):
         for j in range(5, sheet.max_row):
             x = sheet.cell(row=j, column=max_col + i)
             x.font = font_header
             x.alignment = alignment
 
-    sheet[5][7].value = 'Сертификат'
+    sheet[5][7].value = 'Производитель'
     sheet[5][7].font = font_header
     sheet[5][7].alignment = alignment
-    sheet.column_dimensions['H'].width = 20
 
-    sheet[5][8].value = 'Тип'
+    sheet[5][8].value = 'Сертификат'
     sheet[5][8].font = font_header
     sheet[5][8].alignment = alignment
+    sheet.column_dimensions['H'].width = 20
 
-    sheet[5][9].value = 'Дата начала действия сертификата'
+    sheet[5][9].value = 'Тип'
     sheet[5][9].font = font_header
     sheet[5][9].alignment = alignment
 
-    sheet[5][10].value = 'Дата окончания действия сертификата'
+    sheet[5][10].value = 'Дата начала действия сертификата'
     sheet[5][10].font = font_header
     sheet[5][10].alignment = alignment
 
-    sheet[5][11].value = 'ТНВЭД КОД'
+    sheet[5][11].value = 'Дата окончания действия сертификата'
     sheet[5][11].font = font_header
     sheet[5][11].alignment = alignment
 
-    sheet[5][12].value = 'ТНВЭД ОПИСАНИЕ'
+    sheet[5][12].value = 'ТНВЭД КОД'
     sheet[5][12].font = font_header
     sheet[5][12].alignment = alignment
 
-    sheet[5][13].value = 'Производитель'
+    sheet[5][13].value = 'ТНВЭД ОПИСАНИЕ'
     sheet[5][13].font = font_header
     sheet[5][13].alignment = alignment
 
     max_col = sheet.max_column
     left_join_table_info = make_global_info_table()
-    for i in range(len(left_join_table_info)):
-        for j in range(len(left_join_table_info[i])):
-            tmp_list.append(left_join_table_info[i][j])
-    all_article_from_db = tmp_list
-    decode_dict = decode_certificate_types()
+
     for row in range(6, sheet.max_row):
-        if sheet[row][1].value in all_article_from_db:
-            certificate_id = get_id_by_article_query(sheet[row][1].value,'certificate_id')
-            sheet[row][max_col - 4].value = certificates_dict[certificate_id][0]
-            sheet[row][max_col - 4].font = font_data_exist
+        for i in left_join_table_info:
+            if sheet[row][1].value == i[0] or sheet[row][1].value == i[1]:
+                n = 2
+                for x in range(8, 1, -1):
+                    sheet[row][max_col - x].value = i[n]
+                    sheet[row][max_col - x].font = font_data_exist
+                    n += 1
+                break
+            else:
+                for x in range(8, 1, -1):
+                    sheet[row][max_col - x].value = 'Нет данных'
+                    sheet[row][max_col - x].font = font_data_not_exist
 
-            sheet[row][max_col - 3].value = decode_dict[certificates_dict[certificate_id][1]]
-            sheet[row][max_col - 3].font = font_data_exist
-
-            sheet[row][max_col - 2].value = certificates_dict[certificate_id][2]
-            sheet[row][max_col - 2].font = font_data_exist
-
-            sheet[row][max_col - 1].value = certificates_dict[certificate_id][3]
-            sheet[row][max_col - 1].font = font_data_exist
-
-        else:
-            sheet[row][max_col - 4].value = 'Нет данных'
-            sheet[row][max_col - 4].font = font_data_not_exist
-
-            sheet[row][max_col - 3].value = 'Нет данных'
-            sheet[row][max_col - 3].font = font_data_not_exist
-
-            sheet[row][max_col - 2].value = 'Нет данных'
-            sheet[row][max_col - 2].font = font_data_not_exist
-
-            sheet[row][max_col - 1].value = 'Нет данных'
-            sheet[row][max_col - 1].font = font_data_not_exist
-
-    book.save(rf"certificates_list_by_article.xlsx")
+    book.save(rf"total_list_by_article.xlsx")
     book.close()
+
 
 # endregion
 
-make_global_info_table()
+make_total_list_file('Заказ тест.xlsx')
