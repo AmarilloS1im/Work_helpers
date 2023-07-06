@@ -5,6 +5,7 @@ import openpyxl
 import shutil
 from openpyxl.styles import Font, Alignment
 from dotenv import find_dotenv, load_dotenv
+import uuid
 
 load_dotenv(find_dotenv())
 
@@ -431,10 +432,19 @@ def find_cert_unique_data(universal_query, data_from_user):
 # region Make documents for user
 
 
-def make_replace_file(file_path, possible_change):
-    shutil.copy(rf"{file_path}", rf"possible_changes.xlsx")
-    book = openpyxl.open(rf"possible_changes.xlsx", read_only=False, data_only=True)
+def make_replace_file(file_path, possible_change,user_name):
+    uuid_name = str(uuid.uuid4())
+    uuid_dict = {}
+    if uuid_name in uuid_dict.keys():
+        uuid_name = str(uuid.uuid4())
+    else:
+        uuid_dict[uuid_name] = file_path
+    extension = file_path.split('.')[-1]
+
+    shutil.copy(rf"{file_path}", rf"possible_changes_{uuid_name}.{extension}")
+    book = openpyxl.open(rf"possible_changes_{uuid_name}.{extension}", read_only=False, data_only=True)
     sheet = book.active
+    uuid_file_name = rf"possible_changes_{uuid_name}.{extension}"
     font_data_to_check = Font(
         name='Tahoma',
         size=9,
@@ -447,7 +457,6 @@ def make_replace_file(file_path, possible_change):
     )
     alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
     sheet.column_dimensions['D'].width = 50
-    print(possible_change)
     rows_to_del_list = []
     for row in range(2, sheet.max_row + 1):
         if sheet[row][3].value not in possible_change.keys():
@@ -467,14 +476,26 @@ def make_replace_file(file_path, possible_change):
                                   f" следующий:\n{possible_change[sheet[row][3].value]}\n" \
                                   f"Вставьте в ячейку производителя из предложенных и повторите загрузку\n" \
                                   f"Либо вставьте своего производителя, если уверенны в корректности названия"
-    book.save(rf"possible_changes.xlsx")
+    book.save(rf"possible_changes_{user_name}.{extension}")
     book.close()
 
+    return uuid_file_name
 
-def make_manufacturer_list_file(file_path):
-    shutil.copy(rf"{file_path}", rf"manufacturer_list_by_articles.xlsx")
-    book = openpyxl.open(rf"manufacturer_list_by_articles.xlsx", read_only=False, data_only=True)
+
+
+
+def make_manufacturer_list_file(file_path,user_name):
+    uuid_name = str(uuid.uuid4())
+    uuid_dict = {}
+    if uuid_name in uuid_dict.keys():
+        uuid_name = str(uuid.uuid4())
+    else:
+        uuid_dict[uuid_name] = file_path
+    extension = file_path.split('.')[-1]
+    shutil.copy(rf"{file_path}", rf"manufacturer_list_by_articles_{uuid_name}.{extension}")
+    book = openpyxl.open(rf"manufacturer_list_by_articles_{uuid_name}.{extension}", read_only=False, data_only=True)
     sheet = book.active
+    uuid_file_name = rf"manufacturer_list_by_articles_{uuid_name}.{extension}"
     font_header = Font(
         name='Tahoma',
         size=9,
@@ -526,14 +547,24 @@ def make_manufacturer_list_file(file_path):
                 sheet[row][max_col].value = 'Нет данных'
                 sheet[row][max_col].font = font_data_not_exist
 
-    book.save(rf"manufacturer_list_by_articles.xlsx")
+    book.save(rf"manufacturer_list_by_articles_{user_name}.{extension}")
     book.close()
 
+    return uuid_file_name
 
-def make_certificate_list_file(file_path):
-    shutil.copy(rf"{file_path}", rf"certificates_list_by_article.xlsx")
-    book = openpyxl.open(rf"certificates_list_by_article.xlsx", read_only=False, data_only=True)
+
+def make_certificate_list_file(file_path,user_name):
+    uuid_name = str(uuid.uuid4())
+    uuid_dict = {}
+    if uuid_name in uuid_dict.keys():
+        uuid_name = str(uuid.uuid4())
+    else:
+        uuid_dict[uuid_name] = file_path
+    extension = file_path.split('.')[-1]
+    shutil.copy(rf"{file_path}", rf"certificates_list_by_article_{uuid_name}.{extension}")
+    book = openpyxl.open(rf"certificates_list_by_article_{uuid_name}.{extension}", read_only=False, data_only=True)
     sheet = book.active
+    uuid_file_name = rf"certificates_list_by_article_{uuid_name}.{extension}"
     font_header = Font(
         name='Tahoma',
         size=9,
@@ -591,7 +622,6 @@ def make_certificate_list_file(file_path):
 
     max_col = sheet.max_column
     left_join_table_info = make_global_info_table()
-    print(left_join_table_info)
     for row in range(6, sheet.max_row):
         for i in left_join_table_info:
             if sheet[row][1].value == i[0] or sheet[row][1].value == i[1]:
@@ -606,14 +636,23 @@ def make_certificate_list_file(file_path):
                     sheet[row][max_col - x].value = 'Нет данных'
                     sheet[row][max_col - x].font = font_data_not_exist
 
-    book.save(rf"certificates_list_by_article.xlsx")
+    book.save(rf"certificates_list_by_article_{user_name}.{extension}")
     book.close()
+    return uuid_file_name
 
 
-def make_tnved_list_file(file_path):
-    shutil.copy(rf"{file_path}", rf"tnved_list_by_article.xlsx")
-    book = openpyxl.open(rf"tnved_list_by_article.xlsx", read_only=False, data_only=True)
+def make_tnved_list_file(file_path,user_name):
+    uuid_name = str(uuid.uuid4())
+    uuid_dict = {}
+    if uuid_name in uuid_dict.keys():
+        uuid_name = str(uuid.uuid4())
+    else:
+        uuid_dict[uuid_name] = file_path
+    extension = file_path.split('.')[-1]
+    shutil.copy(rf"{file_path}", rf"tnved_list_by_article_{uuid_name}.{extension}")
+    book = openpyxl.open(rf"tnved_list_by_article_{uuid_name}.{extension}", read_only=False, data_only=True)
     sheet = book.active
+    uuid_file_name = rf"tnved_list_by_article_{uuid_name}.{extension}"
     font_header = Font(
         name='Tahoma',
         size=9,
@@ -678,54 +717,22 @@ def make_tnved_list_file(file_path):
                 for x in range(4, 2, -1):
                     sheet[row][max_col - x].value = 'Нет данных'
                     sheet[row][max_col - x].font = font_data_not_exist
-    book.save(rf"tnved_list_by_article.xlsx")
+    book.save(rf"tnved_list_by_article_{user_name}.{extension}")
     book.close()
+    return uuid_file_name
 
-
-# endregion
-
-# region DECODE OR CONVERT FUNCTIONS
-def convert_manufacturers_to_digit(data):
-    manufacturers_dict = make_dict(universal_query('manufacturers', '*'))
-    for i in range(len(data)):
-        if str(data[i][3]).upper() in manufacturers_dict.keys():
-            data[i][3] = manufacturers_dict[data[i][3].upper()]
-    return data
-
-
-# def decode_certificate_types():
-#     decode_dict = make_dict(universal_query('certificates_types', '*'))
-#     reverse_decode_dict = dict((v, k) for k, v in decode_dict.items())
-#     return reverse_decode_dict
-
-
-def make_global_info_table():
-    try:
-        connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
-                                   password=os.getenv('password'), host=os.getenv('host'))
-        connect.autocommit = True
-        cursor = connect.cursor()
-        cursor.execute(
-            f"SELECT product_id,order_code, manufacturer_name,certificate_number,"
-            f"certificate_type,start_date,end_date,tnved_id,tnved_description"
-            f" FROM bilight_products"
-            f" LEFT JOIN manufacturers USING (manufacturer_id)"
-            f" LEFT JOIN certificates USING (certificate_id)"
-            f" LEFT JOIN certificates_types USING (certificate_type_id)"
-            f" LEFT JOIN tnved USING (tnved_id)")
-        query_data = cursor.fetchmany(9)
-        return query_data
-    except Exception as _ex:
-        print(f"[INFO] ERROR while working with data base {_ex}")
-    finally:
-        cursor.close()
-        connect.close()
-
-
-def make_total_list_file(file_path):
-    shutil.copy(rf"{file_path}", rf"total_list_by_article.xlsx")
-    book = openpyxl.open(rf"total_list_by_article.xlsx", read_only=False, data_only=True)
+def make_total_list_file(file_path,user_name):
+    uuid_name = str(uuid.uuid4())
+    uuid_dict = {}
+    if uuid_name in uuid_dict.keys():
+        uuid_name = str(uuid.uuid4())
+    else:
+        uuid_dict[uuid_name] = file_path
+    extension = file_path.split('.')[-1]
+    shutil.copy(rf"{file_path}", rf"total_list_by_article_{uuid_name}.{extension}")
+    book = openpyxl.open(rf"total_list_by_article_{uuid_name}.{extension}", read_only=False, data_only=True)
     sheet = book.active
+    uuid_file_name = rf"total_list_by_article_{uuid_name}.{extension}"
     font_header = Font(
         name='Tahoma',
         size=9,
@@ -810,10 +817,54 @@ def make_total_list_file(file_path):
                     sheet[row][max_col - x].value = 'Нет данных'
                     sheet[row][max_col - x].font = font_data_not_exist
 
-    book.save(rf"total_list_by_article.xlsx")
+    book.save(rf"total_list_by_article_{user_name}.{extension}")
     book.close()
+    return uuid_file_name
 
 
 # endregion
 
-make_total_list_file('Заказ тест.xlsx')
+# region DECODE OR CONVERT FUNCTIONS
+def convert_manufacturers_to_digit(data):
+    manufacturers_dict = make_dict(universal_query('manufacturers', '*'))
+    for i in range(len(data)):
+        if str(data[i][3]).upper() in manufacturers_dict.keys():
+            data[i][3] = manufacturers_dict[data[i][3].upper()]
+    return data
+
+
+# def decode_certificate_types():
+#     decode_dict = make_dict(universal_query('certificates_types', '*'))
+#     reverse_decode_dict = dict((v, k) for k, v in decode_dict.items())
+#     return reverse_decode_dict
+
+
+def make_global_info_table():
+    try:
+        connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
+                                   password=os.getenv('password'), host=os.getenv('host'))
+        connect.autocommit = True
+        cursor = connect.cursor()
+        cursor.execute(
+            f"SELECT product_id,order_code, manufacturer_name,certificate_number,"
+            f"certificate_type,start_date,end_date,tnved_id,tnved_description"
+            f" FROM bilight_products"
+            f" LEFT JOIN manufacturers USING (manufacturer_id)"
+            f" LEFT JOIN certificates USING (certificate_id)"
+            f" LEFT JOIN certificates_types USING (certificate_type_id)"
+            f" LEFT JOIN tnved USING (tnved_id)")
+        query_data = cursor.fetchmany(9)
+        return query_data
+    except Exception as _ex:
+        print(f"[INFO] ERROR while working with data base {_ex}")
+    finally:
+        cursor.close()
+        connect.close()
+
+
+
+
+
+# endregion
+
+

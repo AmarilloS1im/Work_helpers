@@ -1,4 +1,6 @@
 # region IMPORT
+import os
+
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
@@ -33,6 +35,7 @@ class FSMAdmin(StatesGroup):
     get_tnved_data = State()
     get_all_together = State()
     download_templates = State()
+    get_info_template = State()
 
 
 
@@ -80,6 +83,10 @@ download_template_articles = types.InlineKeyboardButton('Скачать шабл
 download_template_certificates = types.InlineKeyboardButton('Скачать шаблон для загрузки сертификатов', callback_data = 'download_template_cert')
 markup_download_templates = types.InlineKeyboardMarkup(row_width=1)
 markup_download_templates.add(download_template_articles,download_template_certificates,button_back)
+
+get_info_template = types.InlineKeyboardButton("Скачать шаблон для получения данных",callback_data='get_info_template')
+markup_get_info_template = types.InlineKeyboardMarkup(row_width=1)
+markup_get_info_template.add(get_info_template,button_back)
 
 duplicate_cert_button_yes = types.InlineKeyboardButton('Заменить', callback_data='cert_duplicate_yes')
 duplicate_cert_button_no = types.InlineKeyboardButton('Нет', callback_data='cert_duplicate_no')
@@ -165,6 +172,14 @@ async def callback_download_templates_cert(callback: types.CallbackQuery, state=
 
     await callback.message.answer(f"Шаблон готов к скачиванию", reply_markup=markup_back)
 
+
+@dp.callback_query_handler(text='get_info_template',state=[FSMAdmin.get_manufacturers_data,FSMAdmin.get_certificates_data,
+                                                           FSMAdmin.get_tnved_data,FSMAdmin.get_all_together])
+async def callback_get_info_template(callback: types.CallbackQuery, state=FSMContext):
+    reply_template = open(r"get_info_template.xlsx",'rb')
+    await callback.message.reply_document(reply_template)
+    await callback.message.answer(f"Шаблон готов к скачиванию", reply_markup=markup_back)
+
 @dp.callback_query_handler(text='get_data')
 async def callback_products_upload(callback: types.CallbackQuery):
     await callback.message.answer(f"Нажмите на соотвествующую кнопку, для получения информации о "
@@ -182,7 +197,7 @@ async def callback_get_manufacturers_info(callback: types.CallbackQuery):
         f"Воспользуйтесь печатной формой заказа из 1С или загрузите свой файл в правильном формате:\n\n"
         f"ПЕРВЫЙ АРТИКУЛ В СПИСКЕ ДОЛЖЕН НАХОДИТЬСЯ ВО 2 КОЛОНКЕ И В 6 СТРОКЕ ОСТАЛЬНЫЕ ЯЧЕЙКИ ДОЛЖЫ БЫТЬ ПУСТЫМИ\n\n"
         f"В качестве артикула можно использовать код для заказа или код 1С\n\n"
-        f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
+        f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_get_info_template)
 
 
 @dp.callback_query_handler(text='cert_info')
@@ -194,7 +209,7 @@ async def callback_get_cert_info(callback: types.CallbackQuery):
         f"Воспользуйтесь печатной формой заказа из 1С или загрузите свой файл в правильном формате:\n\n"
         f"ПЕРВЫЙ АРТИКУЛ В СПИСКЕ ДОЛЖЕН НАХОДИТЬСЯ ВО 2 КОЛОНКЕ И В 6 СТРОКЕ ОСТАЛЬНЫЕ ЯЧЕЙКИ ДОЛЖЫ БЫТЬ ПУСТЫМИ\n\n"
         f"В качестве артикула можно использовать код для заказа или код 1С\n\n"
-        f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
+        f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_get_info_template)
 
 
 @dp.callback_query_handler(text='tnvd_code_upload')
@@ -206,7 +221,7 @@ async def callback_get_tnved_info(callback: types.CallbackQuery):
         f"Воспользуйтесь печатной формой заказа из 1С или загрузите свой файл в правильном формате:\n\n"
         f"ПЕРВЫЙ АРТИКУЛ В СПИСКЕ ДОЛЖЕН НАХОДИТЬСЯ ВО 2 КОЛОНКЕ И В 6 СТРОКЕ ОСТАЛЬНЫЕ ЯЧЕЙКИ ДОЛЖЫ БЫТЬ ПУСТЫМИ\n\n"
         f"В качестве артикула можно использовать код для заказа или код 1С\n\n"
-        f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
+        f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_get_info_template)
 
 
 @dp.callback_query_handler(text='all_together')
@@ -218,13 +233,16 @@ async def callback_get_tnved_info(callback: types.CallbackQuery):
         f"Воспользуйтесь печатной формой заказа из 1С или загрузите свой файл в правильном формате:\n\n"
         f"ПЕРВЫЙ АРТИКУЛ В СПИСКЕ ДОЛЖЕН НАХОДИТЬСЯ ВО 2 КОЛОНКЕ И В 6 СТРОКЕ ОСТАЛЬНЫЕ ЯЧЕЙКИ ДОЛЖЫ БЫТЬ ПУСТЫМИ\n\n"
         f"В качестве артикула можно использовать код для заказа или код 1С\n\n"
-        f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
+        f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_get_info_template)
 
 
 # region back button
 @dp.callback_query_handler(text='back', state=[FSMAdmin.upload_new_data, FSMAdmin.get_certificates_data,
                                                FSMAdmin.get_manufacturers_data, FSMAdmin.upload_certificates,
                                                FSMAdmin.upload_products, FSMAdmin.get_tnved_data, FSMAdmin.check_dup,
+                                               FSMAdmin.get_manufacturers_data,FSMAdmin.get_certificates_data,
+                                               FSMAdmin.get_tnved_data,FSMAdmin.get_all_together,
+                                               FSMAdmin.download_templates,FSMAdmin.get_info_template,
                                                None])
 async def callback_back_button(callback: types.CallbackQuery, state: FSMContext):
     await state.finish()
@@ -374,15 +392,22 @@ async def callback_yes_prod(callback: types.CallbackQuery, state=FSMContext):
                                      f" по следующим ID {duplicate_data}."
                                      f" Заменить данные?", reply_markup=markup_duplicate_question)
     else:
-        make_replace_file(doc, possible_change)
+        user_name = callback.from_user.username
+        extension = doc.split('.')[-1]
+        uuid_file_name = make_replace_file(doc, possible_change,user_name)
         converted_manufacturers_data = convert_manufacturers_to_digit(approved_manufacturers_data)
         add_products(converted_manufacturers_data)
 
-        reply_possible_changes = open(r"possible_changes.xlsx", 'rb')
+
+        reply_possible_changes = open(rf"possible_changes_{user_name}.{extension}", 'rb')
         await callback.message.reply_document(reply_possible_changes)
         await callback.message.reply(
             f"Артикулы с корректными производителями  загружены, "
             f"предполагаемые замены производителей в подготовленном файле", reply_markup=markup_back)
+        if rf"possible_changes_{user_name}.{extension}" in os.listdir():
+            os.remove(rf"possible_changes_{user_name}.{extension}")
+        if uuid_file_name in os.listdir():
+            os.remove(uuid_file_name)
         await state.finish()
 
 
@@ -424,14 +449,20 @@ async def callback_yes_duplicate(callback: types.CallbackQuery, state=FSMContext
         unique_data = data['unique_data']
         yes_without_make_pos_change_file = data['yes_without_make_pos_change_file']
     if yes:
-        make_replace_file(doc, possible_change)
-        reply_possible_changes = open(r"possible_changes.xlsx", 'rb')
+        user_name = callback.from_user.username
+        extension = doc.split('.')[-1]
+        uuid_file_name = make_replace_file(doc, possible_change,user_name)
+        reply_possible_changes = open(rf"possible_changes_{user_name}.{extension}", 'rb')
         converted_manufacturers_data = convert_manufacturers_to_digit(duplicate_data)
         add_duplicate_user_data(converted_manufacturers_data)
         await callback.message.reply_document(reply_possible_changes)
         await callback.message.reply(
             f"Артикулы с корректными производителями  загружены, "
             f"предполагаемые замены производителей в подготовленном файле", reply_markup=markup_back)
+        if rf"possible_changes_{user_name}.{extension}" in os.listdir():
+            os.remove(rf"possible_changes_{user_name}.{extension}")
+        if uuid_file_name in os.listdir():
+            os.remove(uuid_file_name)
         await state.finish()
     elif yes_without_make_pos_change_file:
         converted_manufacturers_data = convert_manufacturers_to_digit(duplicate_data)
@@ -489,10 +520,20 @@ async def get_manufacturer_by_article(message: types.Message, state: FSMContext)
             await message.answer('Документ должен быть в формате .xls или .xlsx', reply_markup=markup_back)
         else:
             file_name = message.document.file_name
-            make_manufacturer_list_file(file_name)
-            manufacturer_list_by_articles = open(rf"manufacturer_list_by_articles.xlsx", 'rb')
+            user_name = message.from_user.username
+            extension = file_name.split('.')[-1]
+            destination = rf"{os.getcwd()}\{file_name}"
+            await message.document.download(destination_file=destination)
+            uuid_file_name = make_manufacturer_list_file(file_name,user_name)
+            manufacturer_list_by_articles = open(rf"manufacturer_list_by_articles_{user_name}.{extension}", 'rb')
             await message.reply_document(manufacturer_list_by_articles)
             await message.reply('Документ с производителями готов к скачиванию', reply_markup=markup_back)
+            if rf"manufacturer_list_by_articles_{user_name}.{extension}" in os.listdir():
+                os.remove(rf"manufacturer_list_by_articles_{user_name}.{extension}")
+            if uuid_file_name in os.listdir():
+                os.remove(uuid_file_name)
+            if file_name in os.listdir():
+                os.remove(file_name)
     elif message.content_type == 'text':
         match = None
         all_data = None
@@ -528,10 +569,20 @@ async def get_certificates_by_article(message: types.Message, state: FSMContext)
             await message.answer('Документ должен быть в формате .xls или .xlsx', reply_markup=markup_back)
         else:
             file_name = message.document.file_name
-            make_certificate_list_file(file_name)
-            certificates_list_by_articles = open(rf"certificates_list_by_article.xlsx", 'rb')
+            user_name = message.from_user.username
+            extension = file_name.split('.')[-1]
+            destination = rf"{os.getcwd()}\{file_name}"
+            await message.document.download(destination_file=destination)
+            uuid_file_name =  make_certificate_list_file(file_name,user_name)
+            certificates_list_by_articles = open(rf"certificates_list_by_article_{user_name}.{extension}", 'rb')
             await message.reply_document(certificates_list_by_articles)
             await message.reply('Документ с сертификатами готов к скачиванию', reply_markup=markup_back)
+            if rf"certificates_list_by_article_{user_name}.{extension}" in os.listdir():
+                os.remove(rf"certificates_list_by_article_{user_name}.{extension}")
+            if uuid_file_name in os.listdir():
+                os.remove(uuid_file_name)
+            if file_name in os.listdir():
+                os.remove(file_name)
     elif message.content_type == 'text':
         match = None
         all_data = None
@@ -568,10 +619,20 @@ async def get_tnved_data_by_article(message: types.Message, state: FSMContext):
             await message.answer('Документ должен быть в формате .xls или .xlsx', reply_markup=markup_back)
         else:
             file_name = message.document.file_name
-            make_tnved_list_file(file_name)
-            tnved_list_by_articles = open(rf"tnved_list_by_article.xlsx", 'rb')
+            user_name = message.from_user.username
+            extension = file_name.split('.')[-1]
+            destination = rf"{os.getcwd()}\{file_name}"
+            await message.document.download(destination_file=destination)
+            uuid_file_name = make_tnved_list_file(file_name,user_name)
+            tnved_list_by_articles = open(rf"tnved_list_by_article_{user_name}.{extension}", 'rb')
             await message.reply_document(tnved_list_by_articles)
             await message.reply('Документ с кодами ТНВЭД готов к скачиванию', reply_markup=markup_back)
+            if rf"tnved_list_by_article_{user_name}.{extension}" in os.listdir():
+                os.remove(rf"tnved_list_by_article_{user_name}.{extension}")
+            if uuid_file_name in os.listdir():
+                os.remove(uuid_file_name)
+            if file_name in os.listdir():
+                os.remove(file_name)
     elif message.content_type == 'text':
         match = None
         all_data = None
@@ -607,10 +668,20 @@ async def get_all_together_data_by_article(message: types.Message, state: FSMCon
             await message.answer('Документ должен быть в формате .xls или .xlsx', reply_markup=markup_back)
         else:
             file_name = message.document.file_name
-            make_total_list_file(file_name)
-            tnved_list_by_articles = open(rf"total_list_by_article.xlsx", 'rb')
+            user_name = message.from_user.username
+            extension = file_name.split('.')[-1]
+            destination = rf"{os.getcwd()}\{file_name}"
+            await message.document.download(destination_file=destination)
+            uuid_file_name = make_total_list_file(file_name,user_name)
+            tnved_list_by_articles = open(rf"total_list_by_article_{user_name}.{extension}", 'rb')
             await message.reply_document(tnved_list_by_articles)
             await message.reply('Документ с данными готов к скачиванию', reply_markup=markup_back)
+            if rf"total_list_by_article_{user_name}.{extension}" in os.listdir():
+                os.remove(rf"total_list_by_article_{user_name}.{extension}")
+            if uuid_file_name in os.listdir():
+                os.remove(uuid_file_name)
+            if file_name in os.listdir():
+                os.remove(file_name)
     elif message.content_type == 'text':
         match = None
         all_data = None
