@@ -147,6 +147,7 @@ def get_cert_info_from_user(file_path):
             return None
         else:
             certification_data_list.append(tmp_list)
+    book.close()
     return certification_data_list
 
 
@@ -203,6 +204,7 @@ def add_duplicate_user_data(duplicate_data):
 
 def add_products(products_data_from_user):
     try:
+        error = None
         connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
                                    password=os.getenv('password'), host=os.getenv('host'))
         connect.autocommit = True
@@ -213,6 +215,8 @@ def add_products(products_data_from_user):
                                                                 (%s,%s,%s,%s,%s,%s,%s) """, products_data_from_user)
     except Exception as _ex:
         print(f"[INFO] ERROR while working with data base {_ex}")
+        error = f"[INFO] ERROR while working with data base {_ex}"
+        return error
     finally:
         cursor.close()
         connect.close()
