@@ -6,11 +6,14 @@ import shutil
 from openpyxl.styles import Font, Alignment
 from dotenv import find_dotenv, load_dotenv
 import uuid
+from loguru import logger
 
 load_dotenv(find_dotenv())
 
 
 # endregion
+
+
 
 # region Levinstain algo
 def levinstain_algo(i, j, s1, s2, matrix):
@@ -54,10 +57,12 @@ def universal_query(table_name, *args):
         query_data = cursor.fetchmany(table_len)
         return query_data
     except Exception as _ex:
-        print(f"[INFO] ERROR while working with data base {_ex}")
+        logger.add('error.log')
+        logger.error(f'{_ex}')
     finally:
         cursor.close()
         connect.close()
+        logger.info("Postgre SQL Connection closed")
 
 
 def get_column_name_list(table_name, where_filter, *args):
@@ -77,10 +82,12 @@ def get_column_name_list(table_name, where_filter, *args):
         column_name = [x[0] for x in column_name]
         return column_name
     except Exception as _ex:
-        print(f"[INFO] ERROR while working with data base {_ex}")
+        logger.add('error.log')
+        logger.error(f'{_ex}')
     finally:
         cursor.close()
         connect.close()
+        logger.info("Postgre SQL Connection closed")
 
 
 def get_all_article_from_db():
@@ -94,13 +101,13 @@ def get_all_article_from_db():
         cursor.execute(f"SELECT product_id,order_code FROM bilight_products ")
         all_articles = cursor.fetchmany(table_len)
         return all_articles
-
     except Exception as _ex:
-        print(f"[INFO] ERROR while working with data base {_ex}")
+        logger.add('error.log')
+        logger.error(f'{_ex}')
     finally:
         cursor.close()
         connect.close()
-        print("Postgre SQL Connection closed")
+        logger.info("Postgre SQL Connection closed")
 
 
 def get_id_by_article_query(article, needed_id_name):
@@ -115,10 +122,12 @@ def get_id_by_article_query(article, needed_id_name):
         needed_id = cursor.fetchone()[0]
         return needed_id
     except Exception as _ex:
-        print(f"[INFO] ERROR while working with data base  {_ex}")
+        logger.add('error.log')
+        logger.error(f'{_ex}')
     finally:
         cursor.close()
         connect.close()
+        logger.info("Postgre SQL Connection closed")
 
 
 def get_product_info_from_user(file_path):
@@ -176,11 +185,12 @@ def add_unique_user_data(unique_data):
         else:
             pass
     except Exception as _ex:
-        print(f"[INFO] ERROR while working with data base {_ex}")
+        logger.add('error.log')
+        logger.error(f'{_ex}')
     finally:
         cursor.close()
         connect.close()
-        print("Postgre SQL Connection closed")
+        logger.info("Postgre SQL Connection closed")
 
 
 def add_duplicate_user_data(duplicate_data):
@@ -195,16 +205,16 @@ def add_duplicate_user_data(duplicate_data):
         else:
             pass
     except Exception as _ex:
-        print(f"[INFO] ERROR while working with data base {_ex}")
+        logger.add('error.log')
+        logger.error(f'{_ex}')
     finally:
         cursor.close()
         connect.close()
-        print("Postgre SQL Connection closed")
+        logger.info("Postgre SQL Connection closed")
 
 
 def add_products(products_data_from_user):
     try:
-        error = None
         connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
                                    password=os.getenv('password'), host=os.getenv('host'))
         connect.autocommit = True
@@ -214,13 +224,12 @@ def add_products(products_data_from_user):
                                                                 VALUES
                                                                 (%s,%s,%s,%s,%s,%s,%s) """, products_data_from_user)
     except Exception as _ex:
-        print(f"[INFO] ERROR while working with data base {_ex}")
-        error = f"[INFO] ERROR while working with data base {_ex}"
-        return error
+        logger.add('error.log')
+        logger.error(f'{_ex}')
     finally:
         cursor.close()
         connect.close()
-        print("Postgre SQL Connection closed")
+        logger.info("Postgre SQL Connection closed")
 
 
 def add_new_manufacturers(dict_to_compression, data_from_user):
@@ -235,12 +244,12 @@ def add_new_manufacturers(dict_to_compression, data_from_user):
                 cursor.execute(f"INSERT INTO manufacturers (manufacturer_name) "
                                f"VALUES ('{i.upper()}')")
     except Exception as _ex:
-        print(f"[INFO] ERROR while working with data base {_ex}")
-
+        logger.add('error.log')
+        logger.error(f'{_ex}')
     finally:
         cursor.close()
         connect.close()
-        print("Postgre SQL Connection closed")
+        logger.info("Postgre SQL Connection closed")
 
 
 def add_cert_duplicate_user_data(duplicate_data):
@@ -255,11 +264,12 @@ def add_cert_duplicate_user_data(duplicate_data):
         else:
             pass
     except Exception as _ex:
-        print(f"[INFO] ERROR while working with data base {_ex}")
+        logger.add('error.log')
+        logger.error(f'{_ex}')
     finally:
         cursor.close()
         connect.close()
-        print("Postgre SQL Connection closed")
+        logger.info("Postgre SQL Connection closed")
 
 
 def add_certificates(cert_data_from_user):
@@ -273,11 +283,12 @@ def add_certificates(cert_data_from_user):
                                                 VALUES
                                                 (%s,%s,%s,%s,%s) """, cert_data_from_user)
     except Exception as _ex:
-        print(f"[INFO] ERROR while working with data base {_ex}")
+        logger.add('error.log')
+        logger.error(f'{_ex}')
     finally:
         cursor.close()
         connect.close()
-        print("Postgre SQL Connection closed")
+        logger.info("Postgre SQL Connection closed")
 
 
 # endregion
@@ -327,10 +338,12 @@ def make_replacement(existing_pkey, user_data, table_name, where_filter):
                                f" SET {columns_name_list[j]} = %s"
                                f" WHERE {where_filter} = %s ", (user_data[i][j], user_data[i][0]))
     except Exception as _ex:
-        print(f"[INFO] ERROR while working with data base {_ex}")
+        logger.add('error.log')
+        logger.error(f'{_ex}')
     finally:
         cursor.close()
         connect.close()
+        logger.info("Postgre SQL Connection closed")
 
 
 def make_certificate_dict(query):
@@ -436,7 +449,7 @@ def find_cert_unique_data(universal_query, data_from_user):
 # region Make documents for user
 
 
-def make_replace_file(file_path, possible_change,user_name):
+def make_replace_file(file_path, possible_change, user_name):
     uuid_name = str(uuid.uuid4())
     uuid_dict = {}
     if uuid_name in uuid_dict.keys():
@@ -486,9 +499,7 @@ def make_replace_file(file_path, possible_change,user_name):
     return uuid_file_name
 
 
-
-
-def make_manufacturer_list_file(file_path,user_name):
+def make_manufacturer_list_file(file_path, user_name):
     uuid_name = str(uuid.uuid4())
     uuid_dict = {}
     if uuid_name in uuid_dict.keys():
@@ -557,7 +568,7 @@ def make_manufacturer_list_file(file_path,user_name):
     return uuid_file_name
 
 
-def make_certificate_list_file(file_path,user_name):
+def make_certificate_list_file(file_path, user_name):
     uuid_name = str(uuid.uuid4())
     uuid_dict = {}
     if uuid_name in uuid_dict.keys():
@@ -645,7 +656,7 @@ def make_certificate_list_file(file_path,user_name):
     return uuid_file_name
 
 
-def make_tnved_list_file(file_path,user_name):
+def make_tnved_list_file(file_path, user_name):
     uuid_name = str(uuid.uuid4())
     uuid_dict = {}
     if uuid_name in uuid_dict.keys():
@@ -725,7 +736,8 @@ def make_tnved_list_file(file_path,user_name):
     book.close()
     return uuid_file_name
 
-def make_total_list_file(file_path,user_name):
+
+def make_total_list_file(file_path, user_name):
     uuid_name = str(uuid.uuid4())
     uuid_dict = {}
     if uuid_name in uuid_dict.keys():
@@ -860,15 +872,11 @@ def make_global_info_table():
         query_data = cursor.fetchmany(9)
         return query_data
     except Exception as _ex:
-        print(f"[INFO] ERROR while working with data base {_ex}")
+        logger.add('error.log')
+        logger.error(f'{_ex}')
     finally:
         cursor.close()
         connect.close()
-
-
-
-
+        logger.info("Postgre SQL Connection closed")
 
 # endregion
-
-

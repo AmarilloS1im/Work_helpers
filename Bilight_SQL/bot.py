@@ -1,5 +1,7 @@
 # region IMPORT
+import logging
 import os
+
 
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
@@ -8,6 +10,8 @@ from aiogram.dispatcher.filters.state import State, StatesGroup
 
 import emoji
 from Refactor import *
+
+
 
 load_dotenv(find_dotenv())
 # endregion
@@ -36,7 +40,6 @@ class FSMAdmin(StatesGroup):
     get_all_together = State()
     download_templates = State()
     get_info_template = State()
-
 
 
 # endregion
@@ -75,18 +78,21 @@ markup_start_screen.add(upload_button, download_button)
 # region UPLOAD/DOWNLOAD CERTS OR PROD
 upload_certificates = types.InlineKeyboardButton('Загрузить сертификаты в базу', callback_data='certificates_upload')
 upload_products = types.InlineKeyboardButton('Загрузить артикулы в базу', callback_data='products_upload')
-templates_for_upload_button = types.InlineKeyboardButton('Скачать шаблоны для загрузки артикулов или сертификатов',callback_data='templates')
+templates_for_upload_button = types.InlineKeyboardButton('Скачать шаблоны для загрузки артикулов или сертификатов',
+                                                         callback_data='templates')
 markup_upload_certificates_products = types.InlineKeyboardMarkup(row_width=1)
-markup_upload_certificates_products.add(upload_certificates, upload_products,templates_for_upload_button, button_back)
+markup_upload_certificates_products.add(upload_certificates, upload_products, templates_for_upload_button, button_back)
 
-download_template_articles = types.InlineKeyboardButton('Скачать шаблон для загрузки артикулов', callback_data = 'download_template_art')
-download_template_certificates = types.InlineKeyboardButton('Скачать шаблон для загрузки сертификатов', callback_data = 'download_template_cert')
+download_template_articles = types.InlineKeyboardButton('Скачать шаблон для загрузки артикулов',
+                                                        callback_data='download_template_art')
+download_template_certificates = types.InlineKeyboardButton('Скачать шаблон для загрузки сертификатов',
+                                                            callback_data='download_template_cert')
 markup_download_templates = types.InlineKeyboardMarkup(row_width=1)
-markup_download_templates.add(download_template_articles,download_template_certificates,button_back)
+markup_download_templates.add(download_template_articles, download_template_certificates, button_back)
 
-get_info_template = types.InlineKeyboardButton("Скачать шаблон для получения данных",callback_data='get_info_template')
+get_info_template = types.InlineKeyboardButton("Скачать шаблон для получения данных", callback_data='get_info_template')
 markup_get_info_template = types.InlineKeyboardMarkup(row_width=1)
-markup_get_info_template.add(get_info_template,button_back)
+markup_get_info_template.add(get_info_template, button_back)
 
 duplicate_cert_button_yes = types.InlineKeyboardButton('Заменить', callback_data='cert_duplicate_yes')
 duplicate_cert_button_no = types.InlineKeyboardButton('Нет', callback_data='cert_duplicate_no')
@@ -109,6 +115,8 @@ markup_get_data.add(get_data_by_supplier_button, get_data_by_cert_button, get_tn
 # endregion
 
 # endregion
+
+
 
 
 # region START SCREEN
@@ -149,13 +157,15 @@ async def callback_products_upload(callback: types.CallbackQuery):
     await callback.message.answer(f"ЧТОБЫ ЗАГРУЗИТЕ ДОКУМЕНТ\n"
                                   f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
 
+
 @dp.callback_query_handler(text='templates')
 async def callback_templates_download(callback: types.CallbackQuery):
     await FSMAdmin.download_templates.set()
     await callback.message.answer(f"Нажмите на соотвествующие кнопки, чтобы скачать шаблон для"
                                   f" загрузки артикулов или сертификатов", reply_markup=markup_download_templates)
 
-@dp.callback_query_handler(text='download_template_art',state=[FSMAdmin.download_templates])
+
+@dp.callback_query_handler(text='download_template_art', state=[FSMAdmin.download_templates])
 async def callback_download_templates_art(callback: types.CallbackQuery, state=FSMContext):
     await FSMAdmin.download_templates.set()
     reply_template_art = open(r"products_upload_template.xlsx", 'rb')
@@ -164,7 +174,7 @@ async def callback_download_templates_art(callback: types.CallbackQuery, state=F
     await callback.message.answer(f"Шаблон готов к скачиванию", reply_markup=markup_back)
 
 
-@dp.callback_query_handler(text='download_template_cert',state=[FSMAdmin.download_templates])
+@dp.callback_query_handler(text='download_template_cert', state=[FSMAdmin.download_templates])
 async def callback_download_templates_cert(callback: types.CallbackQuery, state=FSMContext):
     await FSMAdmin.download_templates.set()
     reply_template_cert = open(r"cert_upload_template.xlsx", 'rb')
@@ -173,12 +183,14 @@ async def callback_download_templates_cert(callback: types.CallbackQuery, state=
     await callback.message.answer(f"Шаблон готов к скачиванию", reply_markup=markup_back)
 
 
-@dp.callback_query_handler(text='get_info_template',state=[FSMAdmin.get_manufacturers_data,FSMAdmin.get_certificates_data,
-                                                           FSMAdmin.get_tnved_data,FSMAdmin.get_all_together])
+@dp.callback_query_handler(text='get_info_template',
+                           state=[FSMAdmin.get_manufacturers_data, FSMAdmin.get_certificates_data,
+                                  FSMAdmin.get_tnved_data, FSMAdmin.get_all_together])
 async def callback_get_info_template(callback: types.CallbackQuery, state=FSMContext):
-    reply_template = open(r"get_info_template.xlsx",'rb')
+    reply_template = open(r"get_info_template.xlsx", 'rb')
     await callback.message.reply_document(reply_template)
     await callback.message.answer(f"Шаблон готов к скачиванию", reply_markup=markup_back)
+
 
 @dp.callback_query_handler(text='get_data')
 async def callback_products_upload(callback: types.CallbackQuery):
@@ -240,9 +252,9 @@ async def callback_get_tnved_info(callback: types.CallbackQuery):
 @dp.callback_query_handler(text='back', state=[FSMAdmin.upload_new_data, FSMAdmin.get_certificates_data,
                                                FSMAdmin.get_manufacturers_data, FSMAdmin.upload_certificates,
                                                FSMAdmin.upload_products, FSMAdmin.get_tnved_data, FSMAdmin.check_dup,
-                                               FSMAdmin.get_manufacturers_data,FSMAdmin.get_certificates_data,
-                                               FSMAdmin.get_tnved_data,FSMAdmin.get_all_together,
-                                               FSMAdmin.download_templates,FSMAdmin.get_info_template,
+                                               FSMAdmin.get_manufacturers_data, FSMAdmin.get_certificates_data,
+                                               FSMAdmin.get_tnved_data, FSMAdmin.get_all_together,
+                                               FSMAdmin.download_templates, FSMAdmin.get_info_template,
                                                None])
 async def callback_back_button(callback: types.CallbackQuery, state: FSMContext):
     await state.finish()
@@ -299,7 +311,6 @@ async def load_certificates_to_postgresql(message: types.Message, state: FSMCont
                 if doc in os.listdir():
                     os.remove(doc)
                 await state.finish()
-
 
 
 @dp.callback_query_handler(text='cert_duplicate_yes', state=[FSMAdmin.upload_certificates])
@@ -392,21 +403,15 @@ async def load_products_to_postgresql(message: types.Message, state: FSMContext)
                         data['yes_without_make_pos_change_file'] = yes_without_make_pos_change_file
                         data['add_permition'] = add_permition
 
-
                     await message.reply(f"В базе данные обнаружены дубликаты данных"
                                         f" по следующим ID {duplicate_data}."
                                         f" Заменить данные?", reply_markup=markup_duplicate_question)
                 else:
-                    converted_manufacturers_data = convert_manufacturers_to_digit(data_from_user)
-                    error = add_products(converted_manufacturers_data)
+                    # converted_manufacturers_data = convert_manufacturers_to_digit(data_from_user)
                     await message.reply(
                         f"Артикулы успешно загружены", reply_markup=markup_back)
                     if doc in os.listdir():
                         os.remove(doc)
-                    if error is not None:
-                        await message.reply(
-                            f"{error}", reply_markup=markup_back)
-
                     await state.finish()
 
 
@@ -430,10 +435,9 @@ async def callback_yes_prod(callback: types.CallbackQuery, state=FSMContext):
     else:
         user_name = callback.from_user.username
         extension = doc.split('.')[-1]
-        uuid_file_name = make_replace_file(doc, possible_change,user_name)
+        uuid_file_name = make_replace_file(doc, possible_change, user_name)
         converted_manufacturers_data = convert_manufacturers_to_digit(approved_manufacturers_data)
         add_products(converted_manufacturers_data)
-
 
         reply_possible_changes = open(rf"possible_changes_{user_name}.{extension}", 'rb')
         await callback.message.reply_document(reply_possible_changes)
@@ -446,6 +450,14 @@ async def callback_yes_prod(callback: types.CallbackQuery, state=FSMContext):
             os.remove(uuid_file_name)
         if doc in os.listdir():
             os.remove(doc)
+        if 'error.log' in os.listdir():
+            er = 'error.log'
+            with open(er, mode='r',encoding='utf-8') as error_file:
+                error_info = error_file.readline()
+            error_file.close()
+            os.remove(er)
+            await callback.message.reply(f"{error_info}",reply_markup=markup_back)
+
         await state.finish()
 
 
@@ -492,7 +504,7 @@ async def callback_yes_duplicate(callback: types.CallbackQuery, state=FSMContext
     if yes:
         user_name = callback.from_user.username
         extension = doc.split('.')[-1]
-        uuid_file_name = make_replace_file(doc, possible_change,user_name)
+        uuid_file_name = make_replace_file(doc, possible_change, user_name)
         reply_possible_changes = open(rf"possible_changes_{user_name}.{extension}", 'rb')
         converted_manufacturers_data = convert_manufacturers_to_digit(duplicate_data)
         add_duplicate_user_data(converted_manufacturers_data)
@@ -576,7 +588,7 @@ async def get_manufacturer_by_article(message: types.Message, state: FSMContext)
             extension = file_name.split('.')[-1]
             destination = rf"{os.getcwd()}\{file_name}"
             await message.document.download(destination_file=destination)
-            uuid_file_name = make_manufacturer_list_file(file_name,user_name)
+            uuid_file_name = make_manufacturer_list_file(file_name, user_name)
             manufacturer_list_by_articles = open(rf"manufacturer_list_by_articles_{user_name}.{extension}", 'rb')
             await message.reply_document(manufacturer_list_by_articles)
             await message.reply('Документ с производителями готов к скачиванию', reply_markup=markup_back)
@@ -625,7 +637,7 @@ async def get_certificates_by_article(message: types.Message, state: FSMContext)
             extension = file_name.split('.')[-1]
             destination = rf"{os.getcwd()}\{file_name}"
             await message.document.download(destination_file=destination)
-            uuid_file_name =  make_certificate_list_file(file_name,user_name)
+            uuid_file_name = make_certificate_list_file(file_name, user_name)
             certificates_list_by_articles = open(rf"certificates_list_by_article_{user_name}.{extension}", 'rb')
             await message.reply_document(certificates_list_by_articles)
             await message.reply('Документ с сертификатами готов к скачиванию', reply_markup=markup_back)
@@ -675,7 +687,7 @@ async def get_tnved_data_by_article(message: types.Message, state: FSMContext):
             extension = file_name.split('.')[-1]
             destination = rf"{os.getcwd()}\{file_name}"
             await message.document.download(destination_file=destination)
-            uuid_file_name = make_tnved_list_file(file_name,user_name)
+            uuid_file_name = make_tnved_list_file(file_name, user_name)
             tnved_list_by_articles = open(rf"tnved_list_by_article_{user_name}.{extension}", 'rb')
             await message.reply_document(tnved_list_by_articles)
             await message.reply('Документ с кодами ТНВЭД готов к скачиванию', reply_markup=markup_back)
@@ -724,7 +736,7 @@ async def get_all_together_data_by_article(message: types.Message, state: FSMCon
             extension = file_name.split('.')[-1]
             destination = rf"{os.getcwd()}\{file_name}"
             await message.document.download(destination_file=destination)
-            uuid_file_name = make_total_list_file(file_name,user_name)
+            uuid_file_name = make_total_list_file(file_name, user_name)
             tnved_list_by_articles = open(rf"total_list_by_article_{user_name}.{extension}", 'rb')
             await message.reply_document(tnved_list_by_articles)
             await message.reply('Документ с данными готов к скачиванию', reply_markup=markup_back)
