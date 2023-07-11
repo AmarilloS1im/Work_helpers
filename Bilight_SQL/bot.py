@@ -116,6 +116,25 @@ markup_get_data.add(get_data_by_supplier_button, get_data_by_cert_button, get_tn
 
 # endregion
 
+# region Checkig errors function
+def is_error():
+    if 'error.log' in os.listdir():
+        with open('error.log', mode='r', encoding='utf-8') as error_file:
+            error_info = error_file.readline()
+        error_file.close()
+        return error_info
+    else:
+        return False
+# endregion
+
+# region delete doc and uuid file function
+def delete_doc_and_uuid_file(uuid_file_name, doc):
+    if uuid_file_name in os.listdir():
+        os.remove(uuid_file_name)
+    if doc in os.listdir():
+        os.remove(doc)
+# endregion
+
 
 
 
@@ -292,6 +311,11 @@ async def load_certificates_to_postgresql(message: types.Message, state: FSMCont
             destination = rf"{os.getcwd()}\{doc}"
             await message.document.download(destination_file=destination)
             cert_data_from_user = get_cert_info_from_user(doc)
+            error_info = is_error()
+            if error_info:
+                os.remove('error.log')
+                await message.reply(f"{error_info}", reply_markup=markup_back)
+                delete_doc_and_uuid_file(uuid_name,doc)
             unique_data = find_cert_unique_data(universal_query('certificates', '*'), cert_data_from_user)
             duplicate_data = find_cert_duplicate_data(universal_query('certificates', '*'), doc)
             async with state.proxy() as data:
@@ -306,10 +330,15 @@ async def load_certificates_to_postgresql(message: types.Message, state: FSMCont
 
             else:
                 add_certificates(unique_data)
-                await message.reply(f"Cертификаты загружены",
-                                    reply_markup=markup_back)
-                if doc in os.listdir():
-                    os.remove(doc)
+                error_info = is_error()
+                if error_info:
+                    os.remove('error.log')
+                    await message.reply(f"{error_info}", reply_markup=markup_back)
+                    delete_doc_and_uuid_file(uuid_name, doc)
+                else:
+                    await message.reply(f"Cертификаты загружены",
+                                        reply_markup=markup_back)
+                delete_doc_and_uuid_file(uuid_name, doc)
                 await state.finish()
 
 
@@ -334,6 +363,10 @@ async def callback_no_cert(callback: types.CallbackQuery, state=FSMContext):
         unique_data = data['unique_data']
         doc = data['doc']
     add_certificates(unique_data)
+    error_info = is_error()
+    if error_info:
+        os.remove('error.log')
+        await callback.message.reply(f"{error_info}", reply_markup=markup_back)
     await callback.message.reply(f"Уникальные сертификаты успешно добавлены в базу данных", reply_markup=markup_back)
     if doc in os.listdir():
         os.remove(doc)
@@ -402,14 +435,20 @@ async def load_products_to_postgresql(message: types.Message, state: FSMContext)
                     async with state.proxy() as data:
                         data['yes_without_make_pos_change_file'] = yes_without_make_pos_change_file
                         data['add_permition'] = add_permition
-
                     await message.reply(f"В базе данные обнаружены дубликаты данных"
                                         f" по следующим ID {duplicate_data}."
                                         f" Заменить данные?", reply_markup=markup_duplicate_question)
                 else:
-                    # converted_manufacturers_data = convert_manufacturers_to_digit(data_from_user)
-                    await message.reply(
-                        f"Артикулы успешно загружены", reply_markup=markup_back)
+                    converted_manufacturers_data = convert_manufacturers_to_digit(data_from_user)
+                    add_products(converted_manufacturers_data)
+                    error_info = is_error()
+                    if error_info:
+                        os.remove('error.log')
+                        await message.reply(f"{error_info}", reply_markup=markup_back)
+                        delete_doc_and_uuid_file(uuid_name, doc)
+                    else:
+                        await message.reply(
+                            f"Артикулы успешно загружены", reply_markup=markup_back)
                     if doc in os.listdir():
                         os.remove(doc)
                     await state.finish()
@@ -438,26 +477,22 @@ async def callback_yes_prod(callback: types.CallbackQuery, state=FSMContext):
         uuid_file_name = make_replace_file(doc, possible_change, user_name)
         converted_manufacturers_data = convert_manufacturers_to_digit(approved_manufacturers_data)
         add_products(converted_manufacturers_data)
-
         reply_possible_changes = open(rf"possible_changes_{user_name}.{extension}", 'rb')
         await callback.message.reply_document(reply_possible_changes)
-        await callback.message.reply(
-            f"Артикулы с корректными производителями  загружены, "
-            f"предполагаемые замены производителей в подготовленном файле", reply_markup=markup_back)
+        error_info = is_error()
+        if error_info:
+            os.remove('error.log')
+            await callback.message.reply(f"{error_info}", reply_markup=markup_back)
+        else:
+            await callback.message.reply(
+                f"Артикулы с корректными производителями  загружены, "
+                f"предполагаемые замены производителей в подготовленном файле", reply_markup=markup_back)
         if rf"possible_changes_{user_name}.{extension}" in os.listdir():
             os.remove(rf"possible_changes_{user_name}.{extension}")
         if uuid_file_name in os.listdir():
             os.remove(uuid_file_name)
         if doc in os.listdir():
             os.remove(doc)
-        if 'error.log' in os.listdir():
-            er = 'error.log'
-            with open(er, mode='r',encoding='utf-8') as error_file:
-                error_info = error_file.readline()
-            error_file.close()
-            os.remove(er)
-            await callback.message.reply(f"{error_info}",reply_markup=markup_back)
-
         await state.finish()
 
 
@@ -482,8 +517,15 @@ async def callback_no_prod(callback: types.CallbackQuery, state=FSMContext):
         add_new_manufacturers(manufacturers_dict, data_from_user)
         converted_manufacturers_data = convert_manufacturers_to_digit(unique_data)
         add_products(converted_manufacturers_data)
-        await callback.message.reply(f"Артикулы и новые производители  успешно добавлены в базу данных",
-                                     reply_markup=markup_back)
+        if 'error.log' in os.listdir():
+            with open('error.log', mode='r',encoding='utf-8') as error_file:
+                error_info = error_file.readline()
+            error_file.close()
+            os.remove('error.log')
+            await callback.message.reply(f"{error_info}",reply_markup=markup_back)
+        else:
+            await callback.message.reply(f"Артикулы и новые производители  успешно добавлены в базу данных",
+                                         reply_markup=markup_back)
         if doc in os.listdir():
             os.remove(doc)
         await state.finish()
@@ -522,8 +564,15 @@ async def callback_yes_duplicate(callback: types.CallbackQuery, state=FSMContext
     elif yes_without_make_pos_change_file:
         converted_manufacturers_data = convert_manufacturers_to_digit(duplicate_data)
         add_duplicate_user_data(converted_manufacturers_data)
-        await callback.message.reply(f"Артикулы успешно заменены",
-                                     reply_markup=markup_back)
+        converted_manufacturers_data = convert_manufacturers_to_digit(unique_data)
+        add_unique_user_data(converted_manufacturers_data)
+        error_info = is_error()
+        if error_info:
+            os.remove('error.log')
+            await callback.message.reply(f"{error_info}", reply_markup=markup_back)
+        else:
+            await callback.message.reply(f"Артикулы успешно заменены",
+                                         reply_markup=markup_back)
         if doc in os.listdir():
             os.remove(doc)
         await state.finish()
@@ -533,9 +582,13 @@ async def callback_yes_duplicate(callback: types.CallbackQuery, state=FSMContext
         add_duplicate_user_data(converted_manufacturers_data)
         converted_manufacturers_data = convert_manufacturers_to_digit(unique_data)
         add_unique_user_data(converted_manufacturers_data)
-
-        await callback.message.reply(f"Артикулы и новые производители  успешно добавлены в базу данных",
-                                     reply_markup=markup_back)
+        error_info = is_error()
+        if error_info:
+            os.remove('error.log')
+            await callback.message.reply(f"{error_info}", reply_markup=markup_back)
+        else:
+            await callback.message.reply(f"Артикулы и новые производители  успешно добавлены в базу данных",
+                                         reply_markup=markup_back)
         if doc in os.listdir():
             os.remove(doc)
         await state.finish()

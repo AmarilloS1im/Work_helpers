@@ -1,4 +1,5 @@
 # region Import
+import logging
 import os
 import psycopg2
 import openpyxl
@@ -59,6 +60,7 @@ def universal_query(table_name, *args):
     except Exception as _ex:
         logger.add('error.log')
         logger.error(f'{_ex}')
+        logger.remove()
     finally:
         cursor.close()
         connect.close()
@@ -84,6 +86,7 @@ def get_column_name_list(table_name, where_filter, *args):
     except Exception as _ex:
         logger.add('error.log')
         logger.error(f'{_ex}')
+        logger.remove()
     finally:
         cursor.close()
         connect.close()
@@ -104,6 +107,7 @@ def get_all_article_from_db():
     except Exception as _ex:
         logger.add('error.log')
         logger.error(f'{_ex}')
+        logger.remove()
     finally:
         cursor.close()
         connect.close()
@@ -124,6 +128,7 @@ def get_id_by_article_query(article, needed_id_name):
     except Exception as _ex:
         logger.add('error.log')
         logger.error(f'{_ex}')
+        logger.remove()
     finally:
         cursor.close()
         connect.close()
@@ -152,7 +157,10 @@ def get_cert_info_from_user(file_path):
         for column in range(0, 5):
             tmp_list.append(sheet[row][column].value)
         if None in tmp_list:
-            print("Columns can't be empty")
+            logger.add('error.log')
+            logger.error("Columns can't be empty")
+            logger.remove()
+            book.close()
             return None
         else:
             certification_data_list.append(tmp_list)
@@ -187,6 +195,7 @@ def add_unique_user_data(unique_data):
     except Exception as _ex:
         logger.add('error.log')
         logger.error(f'{_ex}')
+        logger.remove()
     finally:
         cursor.close()
         connect.close()
@@ -207,6 +216,7 @@ def add_duplicate_user_data(duplicate_data):
     except Exception as _ex:
         logger.add('error.log')
         logger.error(f'{_ex}')
+        logger.remove()
     finally:
         cursor.close()
         connect.close()
@@ -226,6 +236,7 @@ def add_products(products_data_from_user):
     except Exception as _ex:
         logger.add('error.log')
         logger.error(f'{_ex}')
+        logger.remove()
     finally:
         cursor.close()
         connect.close()
@@ -246,6 +257,7 @@ def add_new_manufacturers(dict_to_compression, data_from_user):
     except Exception as _ex:
         logger.add('error.log')
         logger.error(f'{_ex}')
+        logger.remove()
     finally:
         cursor.close()
         connect.close()
@@ -266,6 +278,7 @@ def add_cert_duplicate_user_data(duplicate_data):
     except Exception as _ex:
         logger.add('error.log')
         logger.error(f'{_ex}')
+        logger.remove()
     finally:
         cursor.close()
         connect.close()
@@ -285,6 +298,7 @@ def add_certificates(cert_data_from_user):
     except Exception as _ex:
         logger.add('error.log')
         logger.error(f'{_ex}')
+        logger.remove()
     finally:
         cursor.close()
         connect.close()
@@ -340,6 +354,7 @@ def make_replacement(existing_pkey, user_data, table_name, where_filter):
     except Exception as _ex:
         logger.add('error.log')
         logger.error(f'{_ex}')
+        logger.remove()
     finally:
         cursor.close()
         connect.close()
@@ -874,6 +889,7 @@ def make_global_info_table():
     except Exception as _ex:
         logger.add('error.log')
         logger.error(f'{_ex}')
+        logger.remove()
     finally:
         cursor.close()
         connect.close()
