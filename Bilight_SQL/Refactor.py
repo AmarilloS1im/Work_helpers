@@ -149,6 +149,7 @@ def get_product_info_from_user(file_path):
 
 
 def get_cert_info_from_user(file_path):
+    uuid = file_path.split('_')[0]
     certification_data_list = []
     book = openpyxl.open(file_path, read_only=True, data_only=True)
     sheet = book.active
@@ -157,7 +158,7 @@ def get_cert_info_from_user(file_path):
         for column in range(0, 5):
             tmp_list.append(sheet[row][column].value)
         if None in tmp_list:
-            logger.add('error.log')
+            logger.add(f'{uuid}_error.log')
             logger.error("Columns can't be empty")
             logger.remove()
             book.close()
@@ -202,7 +203,8 @@ def add_unique_user_data(unique_data):
         logger.info("Postgre SQL Connection closed")
 
 
-def add_duplicate_user_data(duplicate_data):
+def add_duplicate_user_data(duplicate_data,file_path):
+    uuid = file_path.split('_')[0]
     try:
         connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
                                    password=os.getenv('password'), host=os.getenv('host'))
@@ -210,11 +212,11 @@ def add_duplicate_user_data(duplicate_data):
         cursor = connect.cursor()
         if duplicate_data:
             existing_pkey = duplicate_data
-            make_replacement(existing_pkey, duplicate_data, 'bilight_products', 'product_id')
+            make_replacement(existing_pkey, duplicate_data, 'bilight_products', 'product_id',file_path)
         else:
             pass
     except Exception as _ex:
-        logger.add('error.log')
+        logger.add(f'{uuid}_error.log')
         logger.error(f'{_ex}')
         logger.remove()
     finally:
@@ -264,7 +266,8 @@ def add_new_manufacturers(dict_to_compression, data_from_user):
         logger.info("Postgre SQL Connection closed")
 
 
-def add_cert_duplicate_user_data(duplicate_data):
+def add_cert_duplicate_user_data(duplicate_data,file_path):
+    uuid = file_path.split('_')[0]
     try:
         connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
                                    password=os.getenv('password'), host=os.getenv('host'))
@@ -272,11 +275,11 @@ def add_cert_duplicate_user_data(duplicate_data):
         cursor = connect.cursor()
         if duplicate_data:
             existing_pkey = duplicate_data
-            make_replacement(existing_pkey, duplicate_data, 'certificates', 'certificate_id')
+            make_replacement(existing_pkey, duplicate_data, 'certificates', 'certificate_id',file_path)
         else:
             pass
     except Exception as _ex:
-        logger.add('error.log')
+        logger.add(f'{uuid}_error.log')
         logger.error(f'{_ex}')
         logger.remove()
     finally:
@@ -285,7 +288,8 @@ def add_cert_duplicate_user_data(duplicate_data):
         logger.info("Postgre SQL Connection closed")
 
 
-def add_certificates(cert_data_from_user):
+def add_certificates(cert_data_from_user,file_path):
+    uuid = file_path.split('_')[0]
     try:
         connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
                                    password=os.getenv('password'), host=os.getenv('host'))
@@ -296,7 +300,7 @@ def add_certificates(cert_data_from_user):
                                                 VALUES
                                                 (%s,%s,%s,%s,%s) """, cert_data_from_user)
     except Exception as _ex:
-        logger.add('error.log')
+        logger.add(f'{uuid}_error.log')
         logger.error(f'{_ex}')
         logger.remove()
     finally:
@@ -339,7 +343,8 @@ def make_possible_change_dict(dict_to_compression, user_data_list):
     return possible_change_dict
 
 
-def make_replacement(existing_pkey, user_data, table_name, where_filter):
+def make_replacement(existing_pkey, user_data, table_name, where_filter,file_path):
+    uuid = file_path.split('_')[0]
     columns_name_list = get_column_name_list('information_schema.columns', table_name, 'column_name')
     try:
         connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
@@ -352,8 +357,8 @@ def make_replacement(existing_pkey, user_data, table_name, where_filter):
                                f" SET {columns_name_list[j]} = %s"
                                f" WHERE {where_filter} = %s ", (user_data[i][j], user_data[i][0]))
     except Exception as _ex:
-        logger.add('error.log')
-        logger.error(f'{_ex}')
+        logger.add(f'{uuid}_error.log')
+        logger.error(f"{_ex}")
         logger.remove()
     finally:
         cursor.close()

@@ -117,9 +117,9 @@ markup_get_data.add(get_data_by_supplier_button, get_data_by_cert_button, get_tn
 # endregion
 
 # region Checkig errors function
-def is_error():
-    if 'error.log' in os.listdir():
-        with open('error.log', mode='r', encoding='utf-8') as error_file:
+def is_error(uuid):
+    if f'{uuid}_error.log' in os.listdir():
+        with open(f'{uuid}_error.log', mode='r', encoding='utf-8') as error_file:
             error_info = error_file.readline()
         error_file.close()
         return error_info
@@ -311,35 +311,37 @@ async def load_certificates_to_postgresql(message: types.Message, state: FSMCont
             destination = rf"{os.getcwd()}\{doc}"
             await message.document.download(destination_file=destination)
             cert_data_from_user = get_cert_info_from_user(doc)
-            error_info = is_error()
+            error_info = is_error(uuid_name)
             if error_info:
-                os.remove('error.log')
-                await message.reply(f"{error_info}", reply_markup=markup_back)
+                os.remove(f'{uuid_name}_error.log')
                 delete_doc_and_uuid_file(uuid_name,doc)
-            unique_data = find_cert_unique_data(universal_query('certificates', '*'), cert_data_from_user)
-            duplicate_data = find_cert_duplicate_data(universal_query('certificates', '*'), doc)
-            async with state.proxy() as data:
-                data['doc'] = doc
-                data['cert_data_from_user'] = cert_data_from_user
-                data['unique_data'] = unique_data
-                data['duplicate_data'] = duplicate_data
-            if duplicate_data:
-                await message.reply(f"В базе данные обнаружены дубликаты данных по следующим ID"
-                                    f" {duplicate_data}. Заменить данные?",
-                                    reply_markup=markup_cert_duplicate_question)
-
+                await message.reply(f"{error_info}", reply_markup=markup_back)
             else:
-                add_certificates(unique_data)
-                error_info = is_error()
-                if error_info:
-                    os.remove('error.log')
-                    await message.reply(f"{error_info}", reply_markup=markup_back)
-                    delete_doc_and_uuid_file(uuid_name, doc)
+                unique_data = find_cert_unique_data(universal_query('certificates', '*'), cert_data_from_user)
+                duplicate_data = find_cert_duplicate_data(universal_query('certificates', '*'), doc)
+                async with state.proxy() as data:
+                    data['doc'] = doc
+                    data['cert_data_from_user'] = cert_data_from_user
+                    data['unique_data'] = unique_data
+                    data['duplicate_data'] = duplicate_data
+                    data['uuid_name'] = uuid_name
+                if duplicate_data:
+                    await message.reply(f"В базе данные обнаружены дубликаты данных по следующим ID"
+                                        f" {duplicate_data}. Заменить данные?",
+                                        reply_markup=markup_cert_duplicate_question)
+
                 else:
-                    await message.reply(f"Cертификаты загружены",
-                                        reply_markup=markup_back)
-                delete_doc_and_uuid_file(uuid_name, doc)
-                await state.finish()
+                    add_certificates(unique_data,doc)
+                    error_info = is_error(uuid_name)
+                    if error_info:
+                        os.remove(f'{uuid_name}_error.log')
+                        delete_doc_and_uuid_file(uuid_name, doc)
+                        await message.reply(f"{error_info}", reply_markup=markup_back)
+                    else:
+                        await message.reply(f"Cертификаты загружены",
+                                            reply_markup=markup_back)
+                    delete_doc_and_uuid_file(uuid_name, doc)
+                    await state.finish()
 
 
 @dp.callback_query_handler(text='cert_duplicate_yes', state=[FSMAdmin.upload_certificates])
@@ -348,13 +350,20 @@ async def callback_yes_cert(callback: types.CallbackQuery, state=FSMContext):
         unique_data = data['unique_data']
         duplicate_data = data['duplicate_data']
         doc = data['doc']
-    add_certificates(unique_data)
-    add_cert_duplicate_user_data(duplicate_data)
-    await callback.message.reply(f"Уникальные сертификаты загружены, дубликаты сертификатов в базе обновлены",
-                                 reply_markup=markup_back)
-    if doc in os.listdir():
-        os.remove(doc)
-    await state.finish()
+        uuid_name = data['uuid_name']
+    add_certificates(unique_data,doc)
+    add_cert_duplicate_user_data(duplicate_data,doc)
+    error_info = is_error(uuid_name)
+    if error_info:
+        os.remove(f'{uuid_name}_error.log')
+        delete_doc_and_uuid_file(uuid_name, doc)
+        await callback.message.reply(f"{error_info}", reply_markup=markup_back)
+    else:
+        await callback.message.reply(f"Уникальные сертификаты загружены, дубликаты сертификатов в базе обновлены",
+                                     reply_markup=markup_back)
+        if doc in os.listdir():
+            os.remove(doc)
+        await state.finish()
 
 
 @dp.callback_query_handler(text='cert_duplicate_no', state=[FSMAdmin.upload_certificates])
@@ -362,15 +371,18 @@ async def callback_no_cert(callback: types.CallbackQuery, state=FSMContext):
     async with state.proxy() as data:
         unique_data = data['unique_data']
         doc = data['doc']
-    add_certificates(unique_data)
-    error_info = is_error()
+        uuid_name = data['uuid_name']
+    add_certificates(unique_data,doc)
+    error_info = is_error(uuid_name)
     if error_info:
-        os.remove('error.log')
+        os.remove(f'{uuid_name}_error.log')
+        delete_doc_and_uuid_file(uuid_name, doc)
         await callback.message.reply(f"{error_info}", reply_markup=markup_back)
-    await callback.message.reply(f"Уникальные сертификаты успешно добавлены в базу данных", reply_markup=markup_back)
-    if doc in os.listdir():
-        os.remove(doc)
-    await state.finish()
+    else:
+        await callback.message.reply(f"Уникальные сертификаты успешно добавлены в базу данных", reply_markup=markup_back)
+        if doc in os.listdir():
+            os.remove(doc)
+        await state.finish()
 
 
 @dp.message_handler(content_types=types.ContentType.ANY, state=[FSMAdmin.upload_products, FSMAdmin.check_dup])
