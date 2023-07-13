@@ -15,7 +15,6 @@ load_dotenv(find_dotenv())
 # endregion
 
 
-
 # region Levinstain algo
 def levinstain_algo(i, j, s1, s2, matrix):
     if i == 0 and j == 0:
@@ -136,6 +135,7 @@ def get_id_by_article_query(article, needed_id_name):
 
 
 def get_product_info_from_user(file_path):
+    uuid = file_path.split('_')[0]
     products_data_list = []
     book = openpyxl.open(file_path, read_only=True, data_only=True)
     sheet = book.active
@@ -143,7 +143,14 @@ def get_product_info_from_user(file_path):
         tmp_list = []
         for column in range(0, 7):
             tmp_list.append(sheet[row][column].value)
-        products_data_list.append(tmp_list)
+        if None in tmp_list:
+            logger.add(f'{uuid}_error.log')
+            logger.error("ERROR: Cells can't be empty! / Ячейки не могут быть пустыми!")
+            logger.remove()
+            book.close()
+            return None
+        else:
+            products_data_list.append(tmp_list)
     book.close()
     return products_data_list
 
@@ -159,7 +166,7 @@ def get_cert_info_from_user(file_path):
             tmp_list.append(sheet[row][column].value)
         if None in tmp_list:
             logger.add(f'{uuid}_error.log')
-            logger.error("Columns can't be empty")
+            logger.error("ERROR: Cells can't be empty! / Ячейки не могут быть пустыми!")
             logger.remove()
             book.close()
             return None
@@ -180,7 +187,8 @@ def get_editorial_num(input_string):
 # endregion
 
 # region ADD FUNCTIONS
-def add_unique_user_data(unique_data):
+def add_unique_user_data(unique_data, file_path):
+    uuid = file_path.split('_')[0]
     try:
         connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
                                    password=os.getenv('password'), host=os.getenv('host'))
@@ -194,7 +202,7 @@ def add_unique_user_data(unique_data):
         else:
             pass
     except Exception as _ex:
-        logger.add('error.log')
+        logger.add(f'{uuid}_error.log')
         logger.error(f'{_ex}')
         logger.remove()
     finally:
@@ -203,7 +211,7 @@ def add_unique_user_data(unique_data):
         logger.info("Postgre SQL Connection closed")
 
 
-def add_duplicate_user_data(duplicate_data,file_path):
+def add_duplicate_user_data(duplicate_data, file_path):
     uuid = file_path.split('_')[0]
     try:
         connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
@@ -212,7 +220,7 @@ def add_duplicate_user_data(duplicate_data,file_path):
         cursor = connect.cursor()
         if duplicate_data:
             existing_pkey = duplicate_data
-            make_replacement(existing_pkey, duplicate_data, 'bilight_products', 'product_id',file_path)
+            make_replacement(existing_pkey, duplicate_data, 'bilight_products', 'product_id', file_path)
         else:
             pass
     except Exception as _ex:
@@ -225,7 +233,8 @@ def add_duplicate_user_data(duplicate_data,file_path):
         logger.info("Postgre SQL Connection closed")
 
 
-def add_products(products_data_from_user):
+def add_products(products_data_from_user, file_path):
+    uuid = file_path.split('_')[0]
     try:
         connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
                                    password=os.getenv('password'), host=os.getenv('host'))
@@ -236,7 +245,7 @@ def add_products(products_data_from_user):
                                                                 VALUES
                                                                 (%s,%s,%s,%s,%s,%s,%s) """, products_data_from_user)
     except Exception as _ex:
-        logger.add('error.log')
+        logger.add(f'{uuid}_error.log')
         logger.error(f'{_ex}')
         logger.remove()
     finally:
@@ -245,7 +254,8 @@ def add_products(products_data_from_user):
         logger.info("Postgre SQL Connection closed")
 
 
-def add_new_manufacturers(dict_to_compression, data_from_user):
+def add_new_manufacturers(dict_to_compression, data_from_user, file_path):
+    uuid = file_path.split('_')[0]
     new_manufacturers = make_possible_change_dict(dict_to_compression, data_from_user)
     try:
         connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
@@ -257,7 +267,7 @@ def add_new_manufacturers(dict_to_compression, data_from_user):
                 cursor.execute(f"INSERT INTO manufacturers (manufacturer_name) "
                                f"VALUES ('{i.upper()}')")
     except Exception as _ex:
-        logger.add('error.log')
+        logger.add(f'{uuid}_error.log')
         logger.error(f'{_ex}')
         logger.remove()
     finally:
@@ -266,7 +276,7 @@ def add_new_manufacturers(dict_to_compression, data_from_user):
         logger.info("Postgre SQL Connection closed")
 
 
-def add_cert_duplicate_user_data(duplicate_data,file_path):
+def add_cert_duplicate_user_data(duplicate_data, file_path):
     uuid = file_path.split('_')[0]
     try:
         connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
@@ -275,7 +285,7 @@ def add_cert_duplicate_user_data(duplicate_data,file_path):
         cursor = connect.cursor()
         if duplicate_data:
             existing_pkey = duplicate_data
-            make_replacement(existing_pkey, duplicate_data, 'certificates', 'certificate_id',file_path)
+            make_replacement(existing_pkey, duplicate_data, 'certificates', 'certificate_id', file_path)
         else:
             pass
     except Exception as _ex:
@@ -288,7 +298,7 @@ def add_cert_duplicate_user_data(duplicate_data,file_path):
         logger.info("Postgre SQL Connection closed")
 
 
-def add_certificates(cert_data_from_user,file_path):
+def add_certificates(cert_data_from_user, file_path):
     uuid = file_path.split('_')[0]
     try:
         connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
@@ -343,7 +353,7 @@ def make_possible_change_dict(dict_to_compression, user_data_list):
     return possible_change_dict
 
 
-def make_replacement(existing_pkey, user_data, table_name, where_filter,file_path):
+def make_replacement(existing_pkey, user_data, table_name, where_filter, file_path):
     uuid = file_path.split('_')[0]
     columns_name_list = get_column_name_list('information_schema.columns', table_name, 'column_name')
     try:
@@ -469,13 +479,7 @@ def find_cert_unique_data(universal_query, data_from_user):
 # region Make documents for user
 
 
-def make_replace_file(file_path, possible_change, user_name):
-    uuid_name = str(uuid.uuid4())
-    uuid_dict = {}
-    if uuid_name in uuid_dict.keys():
-        uuid_name = str(uuid.uuid4())
-    else:
-        uuid_dict[uuid_name] = file_path
+def make_replace_file(file_path, possible_change, user_name, uuid_name):
     extension = file_path.split('.')[-1]
 
     shutil.copy(rf"{file_path}", rf"possible_changes_{uuid_name}.{extension}")

@@ -1,7 +1,4 @@
 # region IMPORT
-import logging
-import os
-
 
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
@@ -10,8 +7,6 @@ from aiogram.dispatcher.filters.state import State, StatesGroup
 
 import emoji
 from Refactor import *
-
-
 
 load_dotenv(find_dotenv())
 # endregion
@@ -125,6 +120,8 @@ def is_error(uuid):
         return error_info
     else:
         return False
+
+
 # endregion
 
 # region delete doc and uuid file function
@@ -133,9 +130,9 @@ def delete_doc_and_uuid_file(uuid_file_name, doc):
         os.remove(uuid_file_name)
     if doc in os.listdir():
         os.remove(doc)
+
+
 # endregion
-
-
 
 
 # region START SCREEN
@@ -314,7 +311,7 @@ async def load_certificates_to_postgresql(message: types.Message, state: FSMCont
             error_info = is_error(uuid_name)
             if error_info:
                 os.remove(f'{uuid_name}_error.log')
-                delete_doc_and_uuid_file(uuid_name,doc)
+                delete_doc_and_uuid_file(uuid_name, doc)
                 await message.reply(f"{error_info}", reply_markup=markup_back)
             else:
                 unique_data = find_cert_unique_data(universal_query('certificates', '*'), cert_data_from_user)
@@ -331,12 +328,14 @@ async def load_certificates_to_postgresql(message: types.Message, state: FSMCont
                                         reply_markup=markup_cert_duplicate_question)
 
                 else:
-                    add_certificates(unique_data,doc)
+                    add_certificates(unique_data, doc)
                     error_info = is_error(uuid_name)
                     if error_info:
                         os.remove(f'{uuid_name}_error.log')
                         delete_doc_and_uuid_file(uuid_name, doc)
-                        await message.reply(f"{error_info}", reply_markup=markup_back)
+                        await message.reply(f"{error_info}\nСертификаты не загружены или загружены не полностью\n"
+                                            f"Проверьте корректность вносимых данных и повторите попытку",
+                                            reply_markup=markup_back)
                     else:
                         await message.reply(f"Cертификаты загружены",
                                             reply_markup=markup_back)
@@ -351,13 +350,15 @@ async def callback_yes_cert(callback: types.CallbackQuery, state=FSMContext):
         duplicate_data = data['duplicate_data']
         doc = data['doc']
         uuid_name = data['uuid_name']
-    add_certificates(unique_data,doc)
-    add_cert_duplicate_user_data(duplicate_data,doc)
+    add_certificates(unique_data, doc)
+    add_cert_duplicate_user_data(duplicate_data, doc)
     error_info = is_error(uuid_name)
     if error_info:
         os.remove(f'{uuid_name}_error.log')
         delete_doc_and_uuid_file(uuid_name, doc)
-        await callback.message.reply(f"{error_info}", reply_markup=markup_back)
+        await callback.message.reply(f"{error_info}\nСертификаты не загружены или загружены не полностью\n"
+                                     f"Проверьте корректность вносимых данных и повторите попытку",
+                                     reply_markup=markup_back)
     else:
         await callback.message.reply(f"Уникальные сертификаты загружены, дубликаты сертификатов в базе обновлены",
                                      reply_markup=markup_back)
@@ -372,14 +373,17 @@ async def callback_no_cert(callback: types.CallbackQuery, state=FSMContext):
         unique_data = data['unique_data']
         doc = data['doc']
         uuid_name = data['uuid_name']
-    add_certificates(unique_data,doc)
+    add_certificates(unique_data, doc)
     error_info = is_error(uuid_name)
     if error_info:
         os.remove(f'{uuid_name}_error.log')
         delete_doc_and_uuid_file(uuid_name, doc)
-        await callback.message.reply(f"{error_info}", reply_markup=markup_back)
+        await callback.message.reply(f"{error_info}\nСертификаты не загружены или загружены не полностью\n"
+                                     f"Проверьте корректность вносимых данных и повторите попытку",
+                                     reply_markup=markup_back)
     else:
-        await callback.message.reply(f"Уникальные сертификаты успешно добавлены в базу данных", reply_markup=markup_back)
+        await callback.message.reply(f"Уникальные сертификаты успешно добавлены в базу данных",
+                                     reply_markup=markup_back)
         if doc in os.listdir():
             os.remove(doc)
         await state.finish()
@@ -408,62 +412,70 @@ async def load_products_to_postgresql(message: types.Message, state: FSMContext)
             destination = rf"{os.getcwd()}\{doc}"
             await message.document.download(destination_file=destination)
             data_from_user = get_product_info_from_user(doc)
-            manufacturers_dict = make_dict(universal_query('manufacturers', '*'))
-            approved_manufacturers_data = approved_manufacturers_data_list(data_from_user, manufacturers_dict)
-            manufacturers_data_to_check = manufacturers_to_check_data_list(data_from_user)
-            unique_data = find_unique_data(universal_query('bilight_products', '*'), data_from_user)
-            duplicate_data = find_duplicate_data(universal_query('bilight_products', '*'), doc)
-            possible_change = make_possible_change_dict(manufacturers_dict, data_from_user)
-            yes = False
-            yes_without_make_pos_change_file = False
-            async with state.proxy() as data:
-                data['doc'] = doc
-                data['data_from_user'] = data_from_user
-                data['manufacturers_dict'] = manufacturers_dict
-                data['approved_manufacturers_data'] = approved_manufacturers_data
-                data['manufacturers_data_to_check'] = manufacturers_data_to_check
-                data['unique_data'] = unique_data
-                data['duplicate_data'] = duplicate_data
-                data['possible_change'] = possible_change
-                data['yes'] = yes
-                data['yes_without_make_pos_change_file'] = yes_without_make_pos_change_file
-            if possible_change:
-                await FSMAdmin.upload_products.set()
-                await message.reply(f"В вашем файле присутствуют производители которых"
-                                    f" нет в списке производителей в базе данных.\n\n"
-                                    f"Если хотите проверить корректность указаных вами производителей,"
-                                    f" нажмите 'Проверить' и программа"
-                                    f" отправит вам файл с возможными заменами, артикулы с корректными "
-                                    f"производителями будут загружены.\n\n"
-                                    f"Если вы уверены, что производители в файле указанны корректно"
-                                    f" нажмите 'Я уверен' и программа добавит в"
-                                    f" базу данных новых производителей", reply_markup=markup_question)
-
+            error_info = is_error(uuid_name)
+            if error_info:
+                os.remove(f'{uuid_name}_error.log')
+                delete_doc_and_uuid_file(uuid_name, doc)
+                await message.reply(f"{error_info}", reply_markup=markup_back)
             else:
-                if duplicate_data:
-                    await FSMAdmin.check_dup.set()
-                    yes_without_make_pos_change_file = True
-                    add_permition = False
-                    async with state.proxy() as data:
-                        data['yes_without_make_pos_change_file'] = yes_without_make_pos_change_file
-                        data['add_permition'] = add_permition
-                    await message.reply(f"В базе данные обнаружены дубликаты данных"
-                                        f" по следующим ID {duplicate_data}."
-                                        f" Заменить данные?", reply_markup=markup_duplicate_question)
+                manufacturers_dict = make_dict(universal_query('manufacturers', '*'))
+                approved_manufacturers_data = approved_manufacturers_data_list(data_from_user, manufacturers_dict)
+                manufacturers_data_to_check = manufacturers_to_check_data_list(data_from_user)
+                unique_data = find_unique_data(universal_query('bilight_products', '*'), data_from_user)
+                duplicate_data = find_duplicate_data(universal_query('bilight_products', '*'), doc)
+                possible_change = make_possible_change_dict(manufacturers_dict, data_from_user)
+                yes = False
+                yes_without_make_pos_change_file = False
+                async with state.proxy() as data:
+                    data['doc'] = doc
+                    data['data_from_user'] = data_from_user
+                    data['manufacturers_dict'] = manufacturers_dict
+                    data['approved_manufacturers_data'] = approved_manufacturers_data
+                    data['manufacturers_data_to_check'] = manufacturers_data_to_check
+                    data['unique_data'] = unique_data
+                    data['duplicate_data'] = duplicate_data
+                    data['possible_change'] = possible_change
+                    data['yes'] = yes
+                    data['yes_without_make_pos_change_file'] = yes_without_make_pos_change_file
+                    data['uuid_name'] = uuid_name
+                if possible_change:
+                    await FSMAdmin.upload_products.set()
+                    await message.reply(f"В вашем файле присутствуют производители которых"
+                                        f" нет в списке производителей в базе данных.\n\n"
+                                        f"Если хотите проверить корректность указаных вами производителей,"
+                                        f" нажмите 'Проверить' и программа"
+                                        f" отправит вам файл с возможными заменами, артикулы с корректными "
+                                        f"производителями будут загружены.\n\n"
+                                        f"Если вы уверены, что производители в файле указанны корректно"
+                                        f" нажмите 'Я уверен' и программа добавит в"
+                                        f" базу данных новых производителей", reply_markup=markup_question)
                 else:
-                    converted_manufacturers_data = convert_manufacturers_to_digit(data_from_user)
-                    add_products(converted_manufacturers_data)
-                    error_info = is_error()
-                    if error_info:
-                        os.remove('error.log')
-                        await message.reply(f"{error_info}", reply_markup=markup_back)
-                        delete_doc_and_uuid_file(uuid_name, doc)
+                    if duplicate_data:
+                        await FSMAdmin.check_dup.set()
+                        yes_without_make_pos_change_file = True
+                        add_permition = False
+                        async with state.proxy() as data:
+                            data['yes_without_make_pos_change_file'] = yes_without_make_pos_change_file
+                            data['add_permition'] = add_permition
+                        await message.reply(f"В базе данные обнаружены дубликаты данных"
+                                            f" по следующим ID {duplicate_data}."
+                                            f" Заменить данные?", reply_markup=markup_duplicate_question)
                     else:
-                        await message.reply(
-                            f"Артикулы успешно загружены", reply_markup=markup_back)
-                    if doc in os.listdir():
-                        os.remove(doc)
-                    await state.finish()
+                        converted_manufacturers_data = convert_manufacturers_to_digit(data_from_user)
+                        add_products(converted_manufacturers_data, doc)
+                        error_info = is_error(uuid_name)
+                        if error_info:
+                            os.remove(f'{uuid_name}_error.log')
+                            delete_doc_and_uuid_file(uuid_name, doc)
+                            await message.reply(f"{error_info}\nАртикулы не загружены или загружены не полностью\n"
+                                                f"Проверьте корректность вносимых данных и повторите попытку",
+                                                reply_markup=markup_back)
+                        else:
+                            await message.reply(
+                                f"Артикулы успешно загружены", reply_markup=markup_back)
+                        if doc in os.listdir():
+                            os.remove(doc)
+                        await state.finish()
 
 
 @dp.callback_query_handler(text='yes', state=[FSMAdmin.check_dup, FSMAdmin.upload_products])
@@ -473,6 +485,7 @@ async def callback_yes_prod(callback: types.CallbackQuery, state=FSMContext):
         approved_manufacturers_data = data['approved_manufacturers_data']
         duplicate_data = data['duplicate_data']
         possible_change = data['possible_change']
+        uuid_name = data['uuid_name']
     if duplicate_data:
         yes = True
         add_permition = True
@@ -486,14 +499,15 @@ async def callback_yes_prod(callback: types.CallbackQuery, state=FSMContext):
     else:
         user_name = callback.from_user.username
         extension = doc.split('.')[-1]
-        uuid_file_name = make_replace_file(doc, possible_change, user_name)
+        make_replace_file(doc, possible_change, user_name, uuid_name)
         converted_manufacturers_data = convert_manufacturers_to_digit(approved_manufacturers_data)
-        add_products(converted_manufacturers_data)
+        add_products(converted_manufacturers_data, doc)
         reply_possible_changes = open(rf"possible_changes_{user_name}.{extension}", 'rb')
         await callback.message.reply_document(reply_possible_changes)
-        error_info = is_error()
+        error_info = is_error(uuid_name)
         if error_info:
-            os.remove('error.log')
+            os.remove(f'{uuid_name}_error.log')
+            delete_doc_and_uuid_file(uuid_name, doc)
             await callback.message.reply(f"{error_info}", reply_markup=markup_back)
         else:
             await callback.message.reply(
@@ -501,8 +515,8 @@ async def callback_yes_prod(callback: types.CallbackQuery, state=FSMContext):
                 f"предполагаемые замены производителей в подготовленном файле", reply_markup=markup_back)
         if rf"possible_changes_{user_name}.{extension}" in os.listdir():
             os.remove(rf"possible_changes_{user_name}.{extension}")
-        if uuid_file_name in os.listdir():
-            os.remove(uuid_file_name)
+        if rf"possible_changes_{uuid_name}.{extension}" in os.listdir():
+            os.remove(rf"possible_changes_{uuid_name}.{extension}")
         if doc in os.listdir():
             os.remove(doc)
         await state.finish()
@@ -519,22 +533,21 @@ async def callback_no_prod(callback: types.CallbackQuery, state=FSMContext):
         unique_data = data['unique_data']
         duplicate_data = data['duplicate_data']
         doc = data['doc']
-
+        uuid_name = data['uuid_name']
     if duplicate_data:
         await FSMAdmin.check_dup.set()
         await callback.message.reply(f"В базе данные обнаружены дубликаты данных"
                                      f" по следующим ID {duplicate_data}."
                                      f" Заменить данные?", reply_markup=markup_duplicate_question)
     else:
-        add_new_manufacturers(manufacturers_dict, data_from_user)
+        add_new_manufacturers(manufacturers_dict, data_from_user, doc)
         converted_manufacturers_data = convert_manufacturers_to_digit(unique_data)
-        add_products(converted_manufacturers_data)
-        if 'error.log' in os.listdir():
-            with open('error.log', mode='r',encoding='utf-8') as error_file:
-                error_info = error_file.readline()
-            error_file.close()
-            os.remove('error.log')
-            await callback.message.reply(f"{error_info}",reply_markup=markup_back)
+        add_products(converted_manufacturers_data, doc)
+        error_info = is_error(uuid_name)
+        if error_info:
+            os.remove(f'{uuid_name}_error.log')
+            delete_doc_and_uuid_file(uuid_name, doc)
+            await callback.message.reply(f"{error_info}", reply_markup=markup_back)
         else:
             await callback.message.reply(f"Артикулы и новые производители  успешно добавлены в базу данных",
                                          reply_markup=markup_back)
@@ -555,33 +568,54 @@ async def callback_yes_duplicate(callback: types.CallbackQuery, state=FSMContext
         data_from_user = data['data_from_user']
         unique_data = data['unique_data']
         yes_without_make_pos_change_file = data['yes_without_make_pos_change_file']
+        uuid_name = data['uuid_name']
     if yes:
         user_name = callback.from_user.username
         extension = doc.split('.')[-1]
-        uuid_file_name = make_replace_file(doc, possible_change, user_name)
+        make_replace_file(doc, possible_change, user_name, uuid_name)
         reply_possible_changes = open(rf"possible_changes_{user_name}.{extension}", 'rb')
         converted_manufacturers_data = convert_manufacturers_to_digit(duplicate_data)
-        add_duplicate_user_data(converted_manufacturers_data)
+        tmp_unique_list = []
+        for x in unique_data:
+            if x[3] not in possible_change.keys():
+                tmp_unique_list.append(x)
+        add_unique_user_data(tmp_unique_list, doc)
+        add_duplicate_user_data(converted_manufacturers_data, doc)
         await callback.message.reply_document(reply_possible_changes)
-        await callback.message.reply(
-            f"Артикулы с корректными производителями  загружены, "
-            f"предполагаемые замены производителей в подготовленном файле", reply_markup=markup_back)
         if rf"possible_changes_{user_name}.{extension}" in os.listdir():
             os.remove(rf"possible_changes_{user_name}.{extension}")
-        if uuid_file_name in os.listdir():
-            os.remove(uuid_file_name)
-        if doc in os.listdir():
-            os.remove(doc)
-        await state.finish()
+        if rf"possible_changes_{uuid_name}.{extension}" in os.listdir():
+            os.remove(rf"possible_changes_{uuid_name}.{extension}")
+        error_info = is_error(uuid_name)
+        if error_info:
+            os.remove(f'{uuid_name}_error.log')
+            delete_doc_and_uuid_file(uuid_name, doc)
+            await callback.message.reply(f"{error_info}\nАртикулы не загружены или загружены не полностью\n"
+                                         f"Проверьте корректность вносимых данных и повторите попытку",
+                                         reply_markup=markup_back)
+        else:
+            await callback.message.reply(
+                f"Артикулы с корректными производителями  загружены, "
+                f"предполагаемые замены производителей в подготовленном файле", reply_markup=markup_back)
+            if rf"possible_changes_{user_name}.{extension}" in os.listdir():
+                os.remove(rf"possible_changes_{user_name}.{extension}")
+            if rf"possible_changes_{uuid_name}.{extension}" in os.listdir():
+                os.remove(rf"possible_changes_{uuid_name}.{extension}")
+            if doc in os.listdir():
+                os.remove(doc)
+            await state.finish()
     elif yes_without_make_pos_change_file:
         converted_manufacturers_data = convert_manufacturers_to_digit(duplicate_data)
-        add_duplicate_user_data(converted_manufacturers_data)
+        add_duplicate_user_data(converted_manufacturers_data, doc)
         converted_manufacturers_data = convert_manufacturers_to_digit(unique_data)
-        add_unique_user_data(converted_manufacturers_data)
-        error_info = is_error()
+        add_unique_user_data(converted_manufacturers_data, doc)
+        error_info = is_error(uuid_name)
         if error_info:
-            os.remove('error.log')
-            await callback.message.reply(f"{error_info}", reply_markup=markup_back)
+            os.remove(f'{uuid_name}_error.log')
+            delete_doc_and_uuid_file(uuid_name, doc)
+            await callback.message.reply(f"{error_info}\nАртикулы не загружены или загружены не полностью\n"
+                                         f"Проверьте корректность вносимых данных и повторите попытку",
+                                         reply_markup=markup_back)
         else:
             await callback.message.reply(f"Артикулы успешно заменены",
                                          reply_markup=markup_back)
@@ -589,15 +623,18 @@ async def callback_yes_duplicate(callback: types.CallbackQuery, state=FSMContext
             os.remove(doc)
         await state.finish()
     else:
-        add_new_manufacturers(manufacturers_dict, data_from_user)
+        add_new_manufacturers(manufacturers_dict, data_from_user, doc)
         converted_manufacturers_data = convert_manufacturers_to_digit(duplicate_data)
-        add_duplicate_user_data(converted_manufacturers_data)
+        add_duplicate_user_data(converted_manufacturers_data, doc)
         converted_manufacturers_data = convert_manufacturers_to_digit(unique_data)
-        add_unique_user_data(converted_manufacturers_data)
-        error_info = is_error()
+        add_unique_user_data(converted_manufacturers_data, doc)
+        error_info = is_error(uuid_name)
         if error_info:
-            os.remove('error.log')
-            await callback.message.reply(f"{error_info}", reply_markup=markup_back)
+            os.remove(f'{uuid_name}_error.log')
+            delete_doc_and_uuid_file(uuid_name, doc)
+            await callback.message.reply(f"{error_info}\nАртикулы не загружены или загружены не полностью\n"
+                                         f"Проверьте корректность вносимых данных и повторите попытку",
+                                         reply_markup=markup_back)
         else:
             await callback.message.reply(f"Артикулы и новые производители  успешно добавлены в базу данных",
                                          reply_markup=markup_back)
@@ -614,20 +651,29 @@ async def callback_no_duplicate(callback: types.CallbackQuery, state=FSMContext)
         manufacturers_dict = data['manufacturers_dict']
         data_from_user = data['data_from_user']
         doc = data['doc']
+        uuid_name = data['uuid_name']
     if add_permition:
-        add_new_manufacturers(manufacturers_dict, data_from_user)
+        add_new_manufacturers(manufacturers_dict, data_from_user, doc)
         converted_manufacturers_data = convert_manufacturers_to_digit(unique_data)
-        add_unique_user_data(converted_manufacturers_data)
-        await callback.message.reply(
-            f"Работа завершена, дубликаты данных пользователя в базе остались без изменений, уникальные артикулы "
-            f"добавлены, новые производители добавлены",
-            reply_markup=markup_back)
+        add_unique_user_data(converted_manufacturers_data, doc)
+        error_info = is_error(uuid_name)
+        if error_info:
+            os.remove(f'{uuid_name}_error.log')
+            delete_doc_and_uuid_file(uuid_name, doc)
+            await callback.message.reply(f"{error_info}\nАртикулы не загружены или загружены не полностью\n"
+                                         f"Проверьте корректность вносимых данных и повторите попытку",
+                                         reply_markup=markup_back)
+        else:
+            await callback.message.reply(
+                f"Работа завершена, дубликаты данных пользователя в базе остались без изменений, уникальные артикулы "
+                f"добавлены, новые производители добавлены",
+                reply_markup=markup_back)
         if doc in os.listdir():
             os.remove(doc)
         await state.finish()
     else:
         converted_manufacturers_data = convert_manufacturers_to_digit(unique_data)
-        add_unique_user_data(converted_manufacturers_data)
+        add_unique_user_data(converted_manufacturers_data, doc)
         await callback.message.reply(
             f"Работа завершена, дубликаты данных пользователя в базе остались без изменений, уникальные артикулы "
             f"добавлены",
