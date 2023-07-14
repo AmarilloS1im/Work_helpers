@@ -27,6 +27,7 @@ dp = Dispatcher(bot, storage=storage)
 class FSMAdmin(StatesGroup):
     upload_new_data = State()
     upload_certificates = State()
+    scan_upload = State()
     upload_products = State()
     check_dup = State()
     get_manufacturers_data = State()
@@ -75,8 +76,15 @@ upload_certificates = types.InlineKeyboardButton('Загрузить серти�
 upload_products = types.InlineKeyboardButton('Загрузить артикулы в базу', callback_data='products_upload')
 templates_for_upload_button = types.InlineKeyboardButton('Скачать шаблоны для загрузки артикулов или сертификатов',
                                                          callback_data='templates')
+upload_scan_button = types.InlineKeyboardButton('Загрузить сканы сертификатов', callback_data='scan_upload')
 markup_upload_certificates_products = types.InlineKeyboardMarkup(row_width=1)
-markup_upload_certificates_products.add(upload_certificates, upload_products, templates_for_upload_button, button_back)
+markup_upload_certificates_products.add(upload_certificates,upload_scan_button, upload_products,
+                                        templates_for_upload_button, button_back)
+
+button_scan_yes = types.InlineKeyboardButton('ЗАМЕНИТЬ',callback_data='replace_scan_yes')
+button_scan_no = types.InlineKeyboardButton('НЕТ',callback_data='replace_scan_no')
+markup_scan = types.InlineKeyboardMarkup(row_width=1)
+markup_scan.add(button_scan_yes,button_scan_no,button_back)
 
 download_template_articles = types.InlineKeyboardButton('Скачать шаблон для загрузки артикулов',
                                                         callback_data='download_template_art')
@@ -165,6 +173,17 @@ async def callback_certificates_upload(callback: types.CallbackQuery):
     await FSMAdmin.upload_certificates.set()
     await callback.message.answer(f"ЧТОБЫ ЗАГРУЗИТЕ ДОКУМЕНТ\n"
                                   f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
+
+@dp.callback_query_handler(text='scan_upload')
+async def callback_scan_upload(callback: types.CallbackQuery):
+    await FSMAdmin.scan_upload.set()
+    await callback.message.answer(f"ЧТОБЫ ЗАГРУЗИТЬ СКАН СЕРТИФИКАТА\n"
+                                  f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}\n\n"
+                                  f"ВНИМАНИЕ!\nНАЗВАНИЕ ФАЙЛА ОТСКАНИРОВАННОГО СЕРТИФИКАТА"
+                                  f" ДОЛЖНО БЫТЬ ИДЕНТИЧНО УНИКАЛЬНОМУ НОМЕРУ "
+                                  f"СЕРТИФИКАТА КОТОРЫЙ ВЫ ЗАГРУЗИЛИ\n(см. столбец A) в шаблоне"
+                                  f" 'cert_upload_template.xlsx'"
+                                  f" скачать шаблон можно в соотвествующем разделе бота.", reply_markup=markup_back)
 
 
 @dp.callback_query_handler(text='products_upload')
@@ -271,7 +290,7 @@ async def callback_get_tnved_info(callback: types.CallbackQuery):
                                                FSMAdmin.get_manufacturers_data, FSMAdmin.get_certificates_data,
                                                FSMAdmin.get_tnved_data, FSMAdmin.get_all_together,
                                                FSMAdmin.download_templates, FSMAdmin.get_info_template,
-                                               None])
+                                               FSMAdmin.scan_upload,None])
 async def callback_back_button(callback: types.CallbackQuery, state: FSMContext):
     await state.finish()
     user_full_name = callback.from_user.username
@@ -387,6 +406,56 @@ async def callback_no_cert(callback: types.CallbackQuery, state=FSMContext):
         if doc in os.listdir():
             os.remove(doc)
         await state.finish()
+
+
+@dp.message_handler(content_types=types.ContentType.ANY, state=FSMAdmin.scan_upload)
+async def load_scan_to_postgresql(message: types.Message, state: FSMContext):
+    if message.content_type != 'document':
+        await FSMAdmin.scan_upload.set()
+        await message.answer('Загружать файлы можно только в формате .pdf',
+                             reply_markup=markup_back)
+    else:
+        file_extension = '.' + message.document.file_name.split('.')[-1]
+        if file_extension != '.pdf':
+            await FSMAdmin.scan_upload.set()
+            await message.answer("Документ должен быть в формате .pdf", reply_markup=markup_back)
+        else:
+            doc = message.document.file_name
+            destination = rf"certificates\{doc}"
+            async with state.proxy() as data:
+                data['doc'] = doc
+            if doc in os.listdir(f"certificates"):
+                await FSMAdmin.scan_upload.set()
+                await message.reply(f"ФАЙЛ С ТАКИМ ИМЕНЕМ УЖЕ ЗАГРУЖЕН В БАЗУ,"
+                                    f"ХОТИТЕ ЗАМЕНИТЬ НА НОВЫЙ?", reply_markup=markup_scan)
+            else:
+                await message.document.download(destination_file=destination)
+                await message.reply(f"НОВЫЙ СКАН СЕРТИФИКАТА ЗАГРУЖЕН В БАЗУ", reply_markup=markup_back)
+                await state.finish()
+
+
+
+
+@dp.callback_query_handler(text='replace_scan_yes', state=[FSMAdmin.scan_upload])
+async def callback_scan_yes(callback: types.CallbackQuery, state=FSMContext):
+    async with state.proxy() as data:
+        doc = data['doc']
+    destination = rf"certificates\{doc}"
+    await callback.message.document.download(destination)
+    await FSMAdmin.scan_upload.set()
+    await callback.message.reply(f"ЗАГРУЗКА ПРОШЛА УСПЕШНО,СКАН СЕРТИФИКАТА В БАЗЕ"
+                                 f"ЗАМЕНЕН НА НОВЫЙ", reply_markup=markup_back)
+    await state.finish()
+
+@dp.callback_query_handler(text='replace_scan_no', state=[FSMAdmin.scan_upload])
+async def callback_scan_no(callback: types.CallbackQuery, state=FSMContext):
+    await FSMAdmin.scan_upload.set()
+    await callback.message.reply(f"ЗАГРУЗКА ОТМЕНЕНА,СКАН СЕРТИФИКАТА В БАЗЕ ОСТАЛСЯ БЕЗ ИЗМЕНЕНИЙ",
+                                 reply_markup=markup_back)
+    await state.finish()
+
+
+
 
 
 @dp.message_handler(content_types=types.ContentType.ANY, state=[FSMAdmin.upload_products, FSMAdmin.check_dup])
