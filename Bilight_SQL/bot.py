@@ -1,22 +1,17 @@
 # region IMPORT
-
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
-
 import emoji
-from Refactor import *
+from core_functions import *
 
 load_dotenv(find_dotenv())
 # endregion
 
 # region INITIALIZE BOT
-
 bot = Bot(token=os.getenv('API_TOKEN'))
-
 storage = MemoryStorage()
-
 dp = Dispatcher(bot, storage=storage)
 
 
@@ -36,6 +31,7 @@ class FSMAdmin(StatesGroup):
     get_all_together = State()
     download_templates = State()
     get_info_template = State()
+    get_scan_by_article = State()
 
 
 # endregion
@@ -78,13 +74,13 @@ templates_for_upload_button = types.InlineKeyboardButton('Скачать шаб�
                                                          callback_data='templates')
 upload_scan_button = types.InlineKeyboardButton('Загрузить сканы сертификатов', callback_data='scan_upload')
 markup_upload_certificates_products = types.InlineKeyboardMarkup(row_width=1)
-markup_upload_certificates_products.add(upload_certificates,upload_scan_button, upload_products,
+markup_upload_certificates_products.add(upload_certificates, upload_scan_button, upload_products,
                                         templates_for_upload_button, button_back)
 
-button_scan_yes = types.InlineKeyboardButton('ЗАМЕНИТЬ',callback_data='replace_scan_yes')
-button_scan_no = types.InlineKeyboardButton('НЕТ',callback_data='replace_scan_no')
+button_scan_yes = types.InlineKeyboardButton('ЗАМЕНИТЬ', callback_data='replace_scan_yes')
+button_scan_no = types.InlineKeyboardButton('НЕТ', callback_data='replace_scan_no')
 markup_scan = types.InlineKeyboardMarkup(row_width=1)
-markup_scan.add(button_scan_yes,button_scan_no,button_back)
+markup_scan.add(button_scan_yes, button_scan_no, button_back)
 
 download_template_articles = types.InlineKeyboardButton('Скачать шаблон для загрузки артикулов',
                                                         callback_data='download_template_art')
@@ -110,9 +106,12 @@ get_data_by_cert_button = types.InlineKeyboardButton('Получить инфо�
 
 get_all_data_button = types.InlineKeyboardButton('ВСЕ ВМЕСТЕ', callback_data='all_together')
 
+get_scan_certificate_by_article_button = types.InlineKeyboardButton('ПОЛУЧИТЬ СКАН СЕРТИФИКАТА ПО АРТИКУЛУ',
+                                                                    callback_data='get_scan_by_article')
+
 markup_get_data = types.InlineKeyboardMarkup(row_width=1)
 markup_get_data.add(get_data_by_supplier_button, get_data_by_cert_button, get_tnvd_code_button, get_all_data_button,
-                    button_back)
+                    get_scan_certificate_by_article_button, button_back)
 
 
 # endregion
@@ -144,7 +143,6 @@ def delete_doc_and_uuid_file(uuid_file_name, doc):
 
 
 # region START SCREEN
-
 @dp.message_handler(commands=['start'])
 async def send_welcome(message: types.Message):
     print('bot  on line')
@@ -161,7 +159,6 @@ async def send_welcome(message: types.Message):
 
 
 # region CALLBACK HANDLERS
-
 @dp.callback_query_handler(text='upload_data')
 async def callback_upload(callback: types.CallbackQuery):
     await callback.message.answer(f"ВНИМАНИЕ!\n\nСНАЧАЛА ЗАГРУЗИТЕ СЕРТИФИКАТЫ!\n\nЕСЛИ СЕРТИФИКАТЫ УЖЕ ЗАГРУЖЕНЫ,"
@@ -173,6 +170,7 @@ async def callback_certificates_upload(callback: types.CallbackQuery):
     await FSMAdmin.upload_certificates.set()
     await callback.message.answer(f"ЧТОБЫ ЗАГРУЗИТЕ ДОКУМЕНТ\n"
                                   f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
+
 
 @dp.callback_query_handler(text='scan_upload')
 async def callback_scan_upload(callback: types.CallbackQuery):
@@ -283,6 +281,14 @@ async def callback_get_tnved_info(callback: types.CallbackQuery):
         f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_get_info_template)
 
 
+@dp.callback_query_handler(text='get_scan_by_article')
+async def callback_get_scan(callback: types.CallbackQuery):
+    await FSMAdmin.get_scan_by_article.set()
+    await callback.message.answer(
+        f"Введите артикул.\n"
+        f"В качестве артикула можно использовать код для заказа или код 1С\n\n", reply_markup=markup_back)
+
+
 # region back button
 @dp.callback_query_handler(text='back', state=[FSMAdmin.upload_new_data, FSMAdmin.get_certificates_data,
                                                FSMAdmin.get_manufacturers_data, FSMAdmin.upload_certificates,
@@ -290,7 +296,7 @@ async def callback_get_tnved_info(callback: types.CallbackQuery):
                                                FSMAdmin.get_manufacturers_data, FSMAdmin.get_certificates_data,
                                                FSMAdmin.get_tnved_data, FSMAdmin.get_all_together,
                                                FSMAdmin.download_templates, FSMAdmin.get_info_template,
-                                               FSMAdmin.scan_upload,None])
+                                               FSMAdmin.scan_upload, FSMAdmin.get_scan_by_article, None])
 async def callback_back_button(callback: types.CallbackQuery, state: FSMContext):
     await state.finish()
     user_full_name = callback.from_user.username
@@ -421,11 +427,20 @@ async def load_scan_to_postgresql(message: types.Message, state: FSMContext):
             await message.answer("Документ должен быть в формате .pdf", reply_markup=markup_back)
         else:
             doc = message.document.file_name
+            uuid_name = str(uuid.uuid4())
+            uuid_dict = {}
+            if uuid_name in uuid_dict.keys():
+                uuid_name = str(uuid.uuid4())
+            else:
+                uuid_dict[uuid_name] = doc
             destination = rf"certificates\{doc}"
+            tmp_destination = rf"tmp\{uuid_name}{doc}"
             async with state.proxy() as data:
                 data['doc'] = doc
+                data['uuid_name'] = uuid_name
             if doc in os.listdir(f"certificates"):
                 await FSMAdmin.scan_upload.set()
+                await message.document.download(destination_file=tmp_destination)
                 await message.reply(f"ФАЙЛ С ТАКИМ ИМЕНЕМ УЖЕ ЗАГРУЖЕН В БАЗУ,"
                                     f"ХОТИТЕ ЗАМЕНИТЬ НА НОВЫЙ?", reply_markup=markup_scan)
             else:
@@ -434,28 +449,31 @@ async def load_scan_to_postgresql(message: types.Message, state: FSMContext):
                 await state.finish()
 
 
-
-
 @dp.callback_query_handler(text='replace_scan_yes', state=[FSMAdmin.scan_upload])
 async def callback_scan_yes(callback: types.CallbackQuery, state=FSMContext):
     async with state.proxy() as data:
         doc = data['doc']
+        uuid_name = data['uuid_name']
     destination = rf"certificates\{doc}"
-    await callback.message.document.download(destination)
+    tmp_destination = rf"tmp\{uuid_name}{doc}"
+    os.replace(tmp_destination, destination)
     await FSMAdmin.scan_upload.set()
     await callback.message.reply(f"ЗАГРУЗКА ПРОШЛА УСПЕШНО,СКАН СЕРТИФИКАТА В БАЗЕ"
                                  f"ЗАМЕНЕН НА НОВЫЙ", reply_markup=markup_back)
     await state.finish()
 
+
 @dp.callback_query_handler(text='replace_scan_no', state=[FSMAdmin.scan_upload])
 async def callback_scan_no(callback: types.CallbackQuery, state=FSMContext):
+    async with state.proxy() as data:
+        doc = data['doc']
+        uuid_name = data['uuid_name']
+    tmp_destination = rf"tmp\{uuid_name}{doc}"
+    os.remove(tmp_destination)
     await FSMAdmin.scan_upload.set()
     await callback.message.reply(f"ЗАГРУЗКА ОТМЕНЕНА,СКАН СЕРТИФИКАТА В БАЗЕ ОСТАЛСЯ БЕЗ ИЗМЕНЕНИЙ",
                                  reply_markup=markup_back)
     await state.finish()
-
-
-
 
 
 @dp.message_handler(content_types=types.ContentType.ANY, state=[FSMAdmin.upload_products, FSMAdmin.check_dup])
@@ -949,6 +967,34 @@ async def get_all_together_data_by_article(message: types.Message, state: FSMCon
                                 f"НАЖМИТЕ НА {emoji.emojize(':paperclip:')}", reply_markup=markup_back)
 
 
+@dp.message_handler(content_types=types.ContentType.ANY, state=FSMAdmin.get_scan_by_article)
+async def get_scan_cert_by_article(message: types.Message, state: FSMContext):
+    await FSMAdmin.get_scan_by_article.set()
+    article = message.text
+    if message.content_type != 'text':
+        await FSMAdmin.get_scan_by_article.set()
+        await message.answer('Сертификаты присылаются только по артикулу, нужно ввести текст', reply_markup=markup_back)
+    else:
+        if article.isdigit():
+            cert_id = get_cert_id_for_scan_query(article, 'product_id')
+        else:
+            cert_id = get_cert_id_for_scan_query(article, 'order_code')
+        if cert_id is not None:
+            if f"{cert_id}.pdf" in os.listdir(f'certificates'):
+                scan = open(rf"certificates/{cert_id}.pdf", 'rb')
+                await message.reply_document(scan)
+                await message.reply(f"Скан сертификата готов к скачиванию\nВведите следующий артикул.",
+                                    reply_markup=markup_back)
+            else:
+                await message.reply(f"Скан сертификата отсутсвует в базе данных\nВведите следующий артикул.",
+                                    reply_markup=markup_back)
+        else:
+            await message.reply(f"Данный артикул в базе данных не найден, либо артикул введен не корректно\n"
+                                f"Проверьте правильно ли написан артикул и повторите попытку\n",
+                                reply_markup=markup_back)
+
+
 # endregion
 
-executor.start_polling(dp, skip_updates=True)
+if __name__ == '__main__':
+    executor.start_polling(dp, skip_updates=True)

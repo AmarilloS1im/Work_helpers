@@ -184,6 +184,27 @@ def get_editorial_num(input_string):
     return editorial_number
 
 
+def get_cert_id_for_scan_query(article, product_id_or_order_code):
+    try:
+        connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
+                                   password=os.getenv('password'), host=os.getenv('host'))
+        connect.autocommit = True
+        cursor = connect.cursor()
+        cursor.execute(
+            f"SELECT certificate_id FROM bilight_products "
+            f"WHERE {product_id_or_order_code} = '{article}'")
+        needed_id = cursor.fetchone()[0]
+        return needed_id
+    except Exception as _ex:
+        logger.add('error.log')
+        logger.error(f'{_ex}')
+        logger.remove()
+    finally:
+        cursor.close()
+        connect.close()
+        logger.info("Postgre SQL Connection closed")
+
+
 # endregion
 
 # region ADD FUNCTIONS
@@ -391,92 +412,6 @@ def make_tnved_dict():
     tnved_dict = make_dict(universal_query('tnved', '*'))
     reverse_tnved_dict = dict((v, k) for k, v in tnved_dict.items())
     return reverse_tnved_dict
-
-
-# endregion
-
-# region CHECK FUNCTIONS
-
-
-def approved_manufacturers_data_list(products_data_list, manufacturer_dict):
-    approved_data_list = []
-    for i in range(len(products_data_list)):
-        if products_data_list[i][3].upper() in manufacturer_dict.keys():
-            approved_data_list.append(products_data_list[i])
-        else:
-            pass
-    return approved_data_list
-
-
-def manufacturers_to_check_data_list(products_data_list):
-    manufacturer_dict = make_dict(universal_query('manufacturers', '*'))
-    data_list_to_check = []
-    for i in range(len(products_data_list)):
-        if str(products_data_list[i][3]).upper() not in manufacturer_dict:
-            data_list_to_check.append(products_data_list[i])
-        else:
-            pass
-    return data_list_to_check
-
-
-# endregion
-
-# region FIND FUNCTIONS
-def find_duplicate_data(universal_query, file_name):
-    data_from_user = get_product_info_from_user(file_name)
-    existing_pkey = universal_query
-    existing_pkey = [x[0] for x in existing_pkey]
-    duplicate_user_data = []
-
-    for i in range(len(data_from_user)):
-        if data_from_user[i][0] in existing_pkey:
-            duplicate_user_data.append(data_from_user[i])
-        else:
-            pass
-    return duplicate_user_data
-
-
-def find_cert_duplicate_data(universal_query, file_name):
-    data_from_user = get_cert_info_from_user(file_name)
-    existing_pkey = universal_query
-    existing_pkey = [x[0] for x in existing_pkey]
-    duplicate_user_data = []
-
-    for i in range(len(data_from_user)):
-        if data_from_user[i][0] in existing_pkey:
-            duplicate_user_data.append(data_from_user[i])
-        else:
-            pass
-    return duplicate_user_data
-
-
-def find_unique_data(universal_query, data_from_user):
-    existing_pkey = universal_query
-    existing_pkey = [x[0] for x in existing_pkey]
-    unique_user_data = []
-    for i in range(len(data_from_user)):
-        if data_from_user[i][0] not in existing_pkey:
-            unique_user_data.append(data_from_user[i])
-        else:
-            pass
-    return unique_user_data
-
-
-def find_cert_unique_data(universal_query, data_from_user):
-    existing_pkey = universal_query
-    existing_pkey = [x[0] for x in existing_pkey]
-    unique_user_data = []
-    for i in range(len(data_from_user)):
-        if data_from_user[i][0] not in existing_pkey:
-            unique_user_data.append(data_from_user[i])
-        else:
-            pass
-    return unique_user_data
-
-
-# endregion
-
-# region Make documents for user
 
 
 def make_replace_file(file_path, possible_change, user_name, uuid_name):
@@ -862,23 +797,6 @@ def make_total_list_file(file_path, user_name):
     return uuid_file_name
 
 
-# endregion
-
-# region DECODE OR CONVERT FUNCTIONS
-def convert_manufacturers_to_digit(data):
-    manufacturers_dict = make_dict(universal_query('manufacturers', '*'))
-    for i in range(len(data)):
-        if str(data[i][3]).upper() in manufacturers_dict.keys():
-            data[i][3] = manufacturers_dict[data[i][3].upper()]
-    return data
-
-
-# def decode_certificate_types():
-#     decode_dict = make_dict(universal_query('certificates_types', '*'))
-#     reverse_decode_dict = dict((v, k) for k, v in decode_dict.items())
-#     return reverse_decode_dict
-
-
 def make_global_info_table():
     try:
         connect = psycopg2.connect(dbname=os.getenv('db_name'), user=os.getenv('user'),
@@ -887,7 +805,7 @@ def make_global_info_table():
         cursor = connect.cursor()
         cursor.execute(
             f"SELECT product_id,order_code, manufacturer_name,certificate_number,"
-            f"certificate_type,start_date,end_date,tnved_id,tnved_description"
+            f"certificate_type,start_date,end_date,tnved_id,tnved_description,certificate_id"
             f" FROM bilight_products"
             f" LEFT JOIN manufacturers USING (manufacturer_id)"
             f" LEFT JOIN certificates USING (certificate_id)"
@@ -904,4 +822,94 @@ def make_global_info_table():
         connect.close()
         logger.info("Postgre SQL Connection closed")
 
+
+# endregion
+
+# region CHECK FUNCTIONS
+def approved_manufacturers_data_list(products_data_list, manufacturer_dict):
+    approved_data_list = []
+    for i in range(len(products_data_list)):
+        if products_data_list[i][3].upper() in manufacturer_dict.keys():
+            approved_data_list.append(products_data_list[i])
+        else:
+            pass
+    return approved_data_list
+
+
+def manufacturers_to_check_data_list(products_data_list):
+    manufacturer_dict = make_dict(universal_query('manufacturers', '*'))
+    data_list_to_check = []
+    for i in range(len(products_data_list)):
+        if str(products_data_list[i][3]).upper() not in manufacturer_dict:
+            data_list_to_check.append(products_data_list[i])
+        else:
+            pass
+    return data_list_to_check
+
+
+# endregion
+
+# region FIND FUNCTIONS
+def find_duplicate_data(universal_query, file_name):
+    data_from_user = get_product_info_from_user(file_name)
+    existing_pkey = universal_query
+    existing_pkey = [x[0] for x in existing_pkey]
+    duplicate_user_data = []
+
+    for i in range(len(data_from_user)):
+        if data_from_user[i][0] in existing_pkey:
+            duplicate_user_data.append(data_from_user[i])
+        else:
+            pass
+    return duplicate_user_data
+
+
+def find_cert_duplicate_data(universal_query, file_name):
+    data_from_user = get_cert_info_from_user(file_name)
+    existing_pkey = universal_query
+    existing_pkey = [x[0] for x in existing_pkey]
+    duplicate_user_data = []
+
+    for i in range(len(data_from_user)):
+        if data_from_user[i][0] in existing_pkey:
+            duplicate_user_data.append(data_from_user[i])
+        else:
+            pass
+    return duplicate_user_data
+
+
+def find_unique_data(universal_query, data_from_user):
+    existing_pkey = universal_query
+    existing_pkey = [x[0] for x in existing_pkey]
+    unique_user_data = []
+    for i in range(len(data_from_user)):
+        if data_from_user[i][0] not in existing_pkey:
+            unique_user_data.append(data_from_user[i])
+        else:
+            pass
+    return unique_user_data
+
+
+def find_cert_unique_data(universal_query, data_from_user):
+    existing_pkey = universal_query
+    existing_pkey = [x[0] for x in existing_pkey]
+    unique_user_data = []
+    for i in range(len(data_from_user)):
+        if data_from_user[i][0] not in existing_pkey:
+            unique_user_data.append(data_from_user[i])
+        else:
+            pass
+    return unique_user_data
+
+
+# endregion
+
+
+# region DECODE OR CONVERT FUNCTIONS
+def convert_manufacturers_to_digit(data):
+    manufacturers_dict = make_dict(universal_query('manufacturers', '*'))
+    for i in range(len(data)):
+        if str(data[i][3]).upper() in manufacturers_dict.keys():
+            data[i][3] = manufacturers_dict[data[i][3].upper()]
+    return data
 # endregion
