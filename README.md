@@ -22,17 +22,18 @@ ________________________________________________________________________________
 
   <ul>
     <li>smtplib</li>
-  openpyxl
-  dotenv
-  email
-  psycopg2
-  shutil
-  loguru
-  uuid
-  os
-  requests
-  json
-  math
-  datetime</ul>
+  <li>openpyxl</li>
+  <li>dotenv</li>
+  <li>email</li>
+  <li>psycopg2</li>
+  <li>shutil</li>
+  <li>loguru</li>
+  <li>uuid</li>
+  <li>os</li>
+  <li>requests</li>
+  <li>json</li>
+  <li>math</li>
+  <li>datetime</li>
+  </ul>
   
 </i>
